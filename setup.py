@@ -10,15 +10,16 @@ with open('requirements.txt', 'r') as requirements:
 
 setuptools.setup(
     name='joey',
-    version='pre1',
-    author='DevitoCodes',
-    description='A machine learning framework running on top of Devito',
+    author='SciCoLab/Devito',
+    description='High-performance machine learning using code generation.',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/devitocodes/joey',
+    url='https://github.com/scicolab/joey',
     packages=setuptools.find_packages(),
     install_requires=reqs,
     classifiers=[
         'Programming Language :: Python :: 3'
-    ]
+    ],
+    use_scm_version=True,
+    setup_requires=['setuptools_scm']
 )
