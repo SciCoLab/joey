@@ -22,7 +22,7 @@ def default_dim_allocator(count):
         names += 'd' + str(dim_index) + ' '
         dim_index += 1
     names = names[:-1]
-    return [SpaceDimension(x) for x in names]
+    return [SpaceDimension(x) for x in names.split()]
 
 
 class Layer(ABC):
