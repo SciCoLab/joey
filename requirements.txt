@@ -1,3 +1,6 @@
 devito==4.2.3
 torch
 torchvision
+nbval
+matplotlib
+pytest
