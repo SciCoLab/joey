@@ -1,3 +1,6 @@
 devito
 torch
 torchvision
+nbval
+matplotlib
+pytest

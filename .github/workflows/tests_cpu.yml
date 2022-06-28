@@ -24,9 +24,11 @@ jobs:
     needs: [docker_build]
     steps:
       - run: docker run -e DEVITO_LANGUAGE=C devitocodes/joey:latest pytest
+      - run: docker run -e DEVITO_LANGUAGE=C devitocodes/joey:latest pytest --nbval "examples/"
   test_openmp:
     name: Run pytest on Docker (CPU with OpenMP)
     runs-on: self-hosted
     needs: [docker_build]
     steps:
       - run: docker run -e DEVITO_LANGUAGE=openmp devitocodes/joey:latest pytest
+      - run: docker run -e DEVITO_LANGUAGE=openmp devitocodes/joey:latest pytest --nbval "examples/"
