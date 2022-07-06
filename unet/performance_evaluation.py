@@ -11,6 +11,11 @@ import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch._C._autograd import ProfilerActivity
+from torch.autograd.profiler import record_function
+from torch.profiler import profile
+
+import joey
 import joey as ml
 import numpy as np
 # import matplotlib.pyplot as plt
@@ -21,7 +26,7 @@ logger.set_log_noperf()
 
 
 def create_lenet():
-    image_size = 1024
+
     # Six 3x3 filters, activation RELU
     layer1 = ml.Conv(kernel_size=(6, 3, 3),
                      input_size=(batch_size, 1, image_size, image_size),
@@ -82,14 +87,18 @@ def train(devito_Net, input_data, expected_results, pytorch_optimizer):
     def loss_grad(layer, expected):
         gradients = []
 
-        for b in range(len(expected)):
-            y = [0]*10
+        # revisit this part, needs to be generalized better
+        if batch_size == 1:
+            y_pred = layer.result.data
+            y = expected
+            return [np.log2(np.exp(y_pred[int(y)]) / (np.sum(np.exp(y_pred))))]
 
-            y[expected] =int(expected)
-
+        for b in range(batch_size):
             y_pred = layer.result.data
 
-            row = np.sum(y*np.log(y_pred))
+            y = expected[b]
+
+            row = np.log2(np.exp(y_pred[int(y)][b]) / (np.sum(np.exp(y_pred[:, b]))))
 
             gradients.append(row)
 
@@ -99,7 +108,8 @@ def train(devito_Net, input_data, expected_results, pytorch_optimizer):
 
 
 # image size is altered here
-image_size = 1024
+image_size = 980
+
 # batch size is picked from here
 batch_list = [1, 2, 8, 16]
 
@@ -130,6 +140,8 @@ for batch_size in batch_list:
 
     # itteration size is selected from here
     itter_list = [1, 2, 3, 6, 12, 25, 50]
+    print("devito start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
+
     for itter in itter_list:
 
         start_time = time.time()
@@ -152,7 +164,6 @@ for batch_size in batch_list:
             super(Net, self).__init__()
             self.conv1 = nn.Conv2d(1, 6, 3)
             self.conv2 = nn.Conv2d(6, 16, 3)
-            image_size = 1024
             pooled_size = (((image_size - 2) // 2) - 2) // 2
             self.fc1 = nn.Linear(16 * pooled_size * pooled_size, 120)
             self.fc2 = nn.Linear(120, 84)
@@ -194,6 +205,7 @@ for batch_size in batch_list:
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     criterion = nn.CrossEntropyLoss()
 
+    print("pyTorch start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
     for itter in itter_list:
         for i, data in enumerate(trainloader, 0):
             images, labels = data
@@ -202,6 +214,11 @@ for batch_size in batch_list:
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            if i==1:
+                with profile(activities=[ProfilerActivity.CPU],
+                             profile_memory=True, record_shapes=True) as prof:
+                    net(images.double())
+                print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
 
             if i == itter - 1:
                 break
