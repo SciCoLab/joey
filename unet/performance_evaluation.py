@@ -108,10 +108,10 @@ def train(devito_Net, input_data, expected_results, pytorch_optimizer):
 
 
 # image size is altered here
-image_size = 980
+image_size = 1024
 
 # batch size is picked from here
-batch_list = [1, 2, 8, 16]
+batch_list = [1,7, 8, 16]
 
 print("image size", image_size)
 for batch_size in batch_list:
@@ -149,7 +149,7 @@ for batch_size in batch_list:
             images, labels = data
             images.double()
 
-            train(devito_net, images, labels, optimizer)
+            #train(devito_net, images, labels, optimizer)
 
             if i == itter - 1:
                 break
@@ -206,6 +206,8 @@ for batch_size in batch_list:
     criterion = nn.CrossEntropyLoss()
 
     print("pyTorch start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
     for itter in itter_list:
         for i, data in enumerate(trainloader, 0):
             images, labels = data
@@ -217,8 +219,9 @@ for batch_size in batch_list:
             if i==1:
                 with profile(activities=[ProfilerActivity.CPU],
                              profile_memory=True, record_shapes=True) as prof:
-                    net(images.double())
-                print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=10))
+                    outputs = net(images.double())
+                                 
+                print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=20))
 
             if i == itter - 1:
                 break
