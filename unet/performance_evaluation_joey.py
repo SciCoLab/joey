@@ -62,19 +62,17 @@ class lenet_Joey():
                 layer_flat, layer5, layer6, layer7]
 
         return (ml.Net(layers), layers)
+        
     def train(self,trainloader):
-        for itter in self.itter_list:
+        for epoch in self.itter_list:
             start_time = time.time()
-            for i, data in enumerate(trainloader, 0):
-                images, labels = data
-                images.double()
-
-                self.train_per_data(images, labels, self.optimizer)
-
-                if i == itter - 1:
-                    break
+            for e in range(0,epoch):
+                for i, data in enumerate(trainloader, 0):
+                    images, labels = data
+                    images.double()
+                    self.train_per_data(images, labels, self.optimizer)
             elapsed_time = time.time() - start_time
-            print("batch :", self.batch_size, "itterations:", itter, "devito: ", elapsed_time)
+            print("batch :", self.batch_size, "itterations:", epoch, "devito: ", elapsed_time)
         return [self.devito_layers[0], self.devito_layers[2], self.devito_layers[5], self.devito_layers[6], self.devito_layers[7]]
 
 
@@ -89,7 +87,8 @@ class lenet_Joey():
             if self.batch_size == 1:
                 y_pred = layer.result.data
                 y = expected
-                return [np.log2(np.exp(y_pred[int(y)]) / (np.sum(np.exp(y_pred))))]
+                result = [np.log2(np.exp(y_pred[int(y)]) / (np.sum(np.exp(y_pred))))]
+                return result
 
             for b in range(self.batch_size):
                 y_pred = layer.result.data

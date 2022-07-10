@@ -61,25 +61,24 @@ class lenet_PyTorch():
 
         print("pyTorch start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
 
-        for itter in self.itter_list:
-            for i, data in enumerate(trainloader, 0):
-                images, labels = data
-                optimizer.zero_grad()
-                outputs = self.net(images.double())
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
-                if i==1:
-                    with profile(activities=[ProfilerActivity.CPU],
-                                profile_memory=True, record_shapes=True) as prof:
-                        outputs = self.net(images.double())
-                                    
-                    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=20))
-
-                if i == itter - 1:
-                    break
+        for epoch in self.itter_list:
+            start_time = time.time()
+            for e in range(0,epoch): 
+                for i, data in enumerate(trainloader, 0):
+                    images, labels = data
+                    optimizer.zero_grad()
+                    outputs = self.net(images.double())
+                    loss = criterion(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
+                    if i==1:
+                        with profile(activities=[ProfilerActivity.CPU],
+                                    profile_memory=True, record_shapes=True) as prof:
+                            outputs = self.net(images.double())
+                                        
+                        #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=20))
             elapsed_time = time.time() - start_time
-            print("batch :", self.batch_size, "itterations:", itter, "pytorch: ", elapsed_time)
+            print("batch :", self.batch_size, "itterations:", epoch, "pytorch: ", elapsed_time)
 
         pytorch_layers = [self.net.conv1, self.net.conv2, self.net.fc1, self.net.fc2, self.net.fc3]
 

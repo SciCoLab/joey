@@ -18,9 +18,7 @@ import numpy as np
 from devito import logger, Max
 import time
 from performance_evaluation_PyTorch import lenet_PyTorch
-
 from performance_evaluation_joey import lenet_Joey
-
 logger.set_log_noperf()
 
 
@@ -42,7 +40,7 @@ for batch_size in batch_list:
     classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
     
     # itteration size is selected from here
-    itter_list = [1, 2, 3, 6, 12, 25, 50]
+    itter_list = [1, 2]
     print("devito start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
 
     joey_net = lenet_Joey(batch_size=batch_size,itter_list=itter_list,image_size=image_size)
