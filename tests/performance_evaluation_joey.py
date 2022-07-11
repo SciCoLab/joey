@@ -1,5 +1,6 @@
 import joey
 import joey as ml
+import torch
 from devito import logger, Max
 import numpy as np
 import time
@@ -7,10 +8,10 @@ import torch.optim as optim
 
 class lenet_Joey():
 
-    def __init__(self,image_size, itter_list, batch_size):
+    def __init__(self,image_size, epochs, batch_size):
 
         self.image_size = image_size
-        self.itter_list = itter_list
+        self.epochs = epochs
         self.batch_size = batch_size
         self.devito_net, self.devito_layers = self.create_lenet()
         self.optimizer = optim.SGD(self.devito_net.pytorch_parameters, lr=0.001, momentum=0.9)
@@ -64,21 +65,28 @@ class lenet_Joey():
         return (ml.Net(layers), layers)
         
     def train(self,trainloader):
-        for epoch in self.itter_list:
-            start_time = time.time()
-            for e in range(0,epoch):
-                for i, data in enumerate(trainloader, 0):
-                    images, labels = data
-                    images.double()
-                    self.train_per_data(images, labels, self.optimizer)
-            elapsed_time = time.time() - start_time
-            print("batch :", self.batch_size, "itterations:", epoch, "devito: ", elapsed_time)
+        if self.epochs is None:
+                self.epochs = 1
+                terminate = True
+
+        start_time = time.time()
+        for e in range(0,self.epochs):
+            for i, data in enumerate(trainloader, 0):
+                images, labels = data
+                images.double()
+                self.train_per_data(images, labels, self.optimizer)
+                if terminate:
+                    break
+        elapsed_time = time.time() - start_time
+        print("batch :", self.batch_size, "itterations:", self.epochs, "devito: ", elapsed_time)
         return [self.devito_layers[0], self.devito_layers[2], self.devito_layers[5], self.devito_layers[6], self.devito_layers[7]]
 
 
 
     def train_per_data(self, input_data, expected_results, pytorch_optimizer):
         self.devito_net.forward(input_data)
+       
+
 
         def loss_grad(layer, expected):
             gradients = []

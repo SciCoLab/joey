@@ -1,3 +1,4 @@
+from pickle import NONE
 import time
 import torch
 import torch.nn.functional as F
@@ -38,10 +39,9 @@ class Net(nn.Module):
 
 class lenet_PyTorch():
     image_size = 0
-    itter_list =[]
-    def __init__(self,image_size, itter_list,batch_size):
+    def __init__(self,image_size, epochs,batch_size):
         self.image_size = image_size
-        self.itter_list = itter_list
+        self.epochs = epochs
         self.batch_size = batch_size
         self.net = Net(self.image_size)
         self.net.double()
@@ -60,25 +60,29 @@ class lenet_PyTorch():
         criterion = nn.CrossEntropyLoss()
 
         print("pyTorch start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
-
-        for epoch in self.itter_list:
-            start_time = time.time()
-            for e in range(0,epoch): 
-                for i, data in enumerate(trainloader, 0):
-                    images, labels = data
-                    optimizer.zero_grad()
-                    outputs = self.net(images.double())
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
-                    if i==1:
-                        with profile(activities=[ProfilerActivity.CPU],
+        terminate = False
+        if self.epochs is None:
+                self.epochs = 1
+                terminate = True
+        start_time = time.time()
+        for e in range(0,self.epochs): 
+            for i, data in enumerate(trainloader, 0):
+                images, labels = data
+                optimizer.zero_grad()
+                outputs = self.net(images.double())
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                if i==0:
+                    with profile(activities=[ProfilerActivity.CPU],
                                     profile_memory=True, record_shapes=True) as prof:
-                            outputs = self.net(images.double())
+                        outputs = self.net(images.double())
                                         
-                        #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=20))
+                    #print(prof.key_averages().table(sort_by="cpu_memory_usage", row_limit=20))
+                    if terminate:
+                        break
             elapsed_time = time.time() - start_time
-            print("batch :", self.batch_size, "itterations:", epoch, "pytorch: ", elapsed_time)
+            print("batch :", self.batch_size, "itterations:", self.epochs, "pytorch: ", elapsed_time)
 
         pytorch_layers = [self.net.conv1, self.net.conv2, self.net.fc1, self.net.fc2, self.net.fc3]
 

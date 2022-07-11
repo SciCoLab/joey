@@ -26,7 +26,8 @@ logger.set_log_noperf()
 image_size = 1024
 
 # batch size is picked from here
-batch_list = [1,2, 8, 16]
+batch_list = [1]
+epochs = None
 
 print("image size", image_size)
 for batch_size in batch_list:
@@ -39,14 +40,12 @@ for batch_size in batch_list:
 
     classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
     
-    # itteration size is selected from here
-    itter_list = [1, 2]
     print("devito start time", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time())))
 
-    joey_net = lenet_Joey(batch_size=batch_size,itter_list=itter_list,image_size=image_size)
+    joey_net = lenet_Joey(batch_size=batch_size,epochs=epochs,image_size=image_size)
     joey_layers = joey_net.train(trainloader=trainloader)
 
-    pyTorch_net = lenet_PyTorch(batch_size=batch_size,itter_list=itter_list,image_size=image_size)
+    pyTorch_net = lenet_PyTorch(batch_size=batch_size,epochs=epochs,image_size=image_size)
     pytorch_layers = pyTorch_net.train(trainloader=trainloader)
 
    
@@ -64,8 +63,8 @@ for batch_size in batch_list:
 
         bias_error = abs(bias - pytorch_bias) / abs(pytorch_bias)
 
-        error = max(np.nanmax(kernel_error), np.nanmax(bias_error))
-        # print('layers[' + str(i) + '] maximum relative error: ' + str(error))
+        error = max(np.max(kernel_error), np.max(bias_error))
+        print('layers[' + str(i) + '] maximum relative error: ' + str(error))
 
         if error > max_error:
             max_error = error
