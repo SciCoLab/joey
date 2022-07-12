@@ -1,4 +1,4 @@
-devito==4.2.3
+devito
 torch
 torchvision
 nbval
