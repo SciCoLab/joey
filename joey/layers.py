@@ -429,7 +429,7 @@ class MaxPooling(Pooling):
 
         if self._indices is None:
             self._indices = \
-                Function(name=alloc(),
+                Function(name="index_%s" % alloc(),
                          grid=self._R.grid,
                          space_order=0,
                          dtype=np.int32)
@@ -464,7 +464,7 @@ class MaxPooling(Pooling):
 
         if self._activation is not None:
             eqs.append(Eq(self._R, self._activation(self._R)))
-
+        from IPython import embed; embed()
         return (eqs, args)
 
     def backprop_equations(self, prev_layer, next_layer):
