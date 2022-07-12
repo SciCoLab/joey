@@ -197,11 +197,8 @@ def test_backward_pass(net_arguments, mnist):
             pytorch_layer = pytorch_layers[j]
             devito_layer = devito_layers[j]
 
-            compare(devito_layer.kernel_gradients.data,
-                    pytorch_layer.weight.grad, 1e-11)
-
-            compare(devito_layer.bias_gradients.data,
-                    pytorch_layer.bias.grad, 1e-11)
+            assert(np.allclose(pytorch_layer.weight.grad.detach().numpy(),devito_layer.kernel_gradients.data))
+            assert(np.allclose(pytorch_layer.bias.grad.detach().numpy(),devito_layer.bias_gradients.data))
 
 
 def run_training(net_arguments, mnist):
