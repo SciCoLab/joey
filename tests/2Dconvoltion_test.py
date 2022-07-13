@@ -35,6 +35,7 @@ torch_conv_op = torch.nn.Conv2d(1,1, kernel_size=3, stride=1)
 
 with torch.no_grad():
     torch_conv_op.weight = torch.nn.Parameter(weights)
+    torch_conv_op.bias = torch.nn.Parameter(torch.Tensor([0]))
 
 
 print(torch_conv_op(custom_input_T))
