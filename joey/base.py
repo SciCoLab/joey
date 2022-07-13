@@ -66,7 +66,7 @@ class Layer(ABC):
         if activation is None:
             activation = activ.Dummy()
 
-        if not issubclass(type(activation), Activation):
+        if not isinstance(activation, Activation):
             raise Exception("activation must be an instance of Activation or "
                             "its subclass")
 
