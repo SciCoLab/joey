@@ -6,9 +6,6 @@ import torch
 
 import joey as ml
 from joey.net import Net
-from scipy import signal
-image_size = 1024
-input_data = torch.rand(1,1,image_size, image_size)
 
 input  = []
 c=0;
@@ -42,6 +39,9 @@ with torch.no_grad():
 print(torch_conv_op(custom_input_T).detach().numpy())
 
 #Random image size test b/w pyTorch and Joey
+
+# image_size = 1024
+# input_data = torch.rand(1,1,image_size, image_size)
 
 # weight_dev = torch_conv_op.weight.transpose(0,1).detach().numpy()
 
