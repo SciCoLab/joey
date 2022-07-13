@@ -1,9 +1,10 @@
+from calendar import c
 import numpy as np
 import torch
 
 import joey as ml
 from joey.net import Net
-
+from scipy import signal
 image_size = 1024
 input_data = torch.rand(1,1,image_size, image_size)
 
@@ -34,3 +35,11 @@ print("Max error across all indices :", np.max(abs(abs(torch_conv_res.detach().n
 print("PyTorch Weight sum:", np.sum(abs(torch_conv_res.detach().numpy())))
 print("Joey Weight sum :", np.sum(abs(current_data)))
 
+input  = [[0]*5]*5
+c=0;
+for i in range(0,5):
+    for j in range(0,5):
+        input[i][j] =  c
+        c = c+1;
+k = [[0,0,0] ,[1,0,-1],[0,0,0]]
+print(signal.correlate2d(input, k, mode='valid'))
