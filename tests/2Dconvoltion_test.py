@@ -24,15 +24,13 @@ torch_conv_res = torch_conv_op(input_data)
 layer1 = ml.Conv(kernel_size=(1, 3, 3),
                         input_size=(1, 1, image_size , image_size),
                         activation=None,
-                        generate_code=False)
+                        generate_code=True)
                         
 # pass the data to the Joey operator
-joey_net = ml.Net([layer1]);
-joey_net.forward(input_data)
-current_data = joey_net._layers[0].result.data
+current_data = layer1.execute(input_data,bias_dev,weight_dev)
 print("Same result:", np.allclose(torch_conv_res.detach().numpy(), current_data))
-print("Absolute error :", np.sum(abs(abs(torch_conv_res.detach().numpy()) - abs(current_data))))
+print("Max error across all indices :", np.max(abs(abs(torch_conv_res.detach().numpy()) - abs(current_data))))
 
-print("PyTorch Weight l2 norm:", np.linalg.norm(abs(abs(torch_conv_res.detach().numpy()))))
-print("Joey Weight l2 norm :", np.linalg.norm(abs(current_data)))
+print("PyTorch Weight sum:", np.sum(abs(torch_conv_res.detach().numpy())))
+print("Joey Weight sum :", np.sum(abs(current_data)))
 
