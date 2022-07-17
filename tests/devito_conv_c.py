@@ -9,13 +9,13 @@ import sympy as sy
 
 input  = []
 c=0;
+#generate input data = [[0..5],[6..10],...[20..25]]
 for i in range(0,5):
     temp =[]
     for j in range(0,5):
         temp.append(c)
         c = c+1;
     input.append(temp)
-custom_kernel = [[0,0,0] ,[1,0,-1],[0,0,0]]
 
 custom_kernel = [[0,0,0] ,[1,0,-1],[0,0,0]]
 
