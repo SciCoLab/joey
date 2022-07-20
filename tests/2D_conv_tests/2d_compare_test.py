@@ -17,7 +17,7 @@ custom_kernel = [[0,0,0] ,[1,0,-1],[0,0,0]]
 #@pytest.mark.parametrize("input, kernel, padding, stride", [(input, custom_kernel, 1, 1),(input, custom_kernel, 2, 1) ])
 def compare_Devito_pyTorch(input, kernel, padding, stride):
 
-    result_devito = conv_devito_2D_withoutStride(input, custom_kernel, stride, padding)
+    result_devito = conv_devito_2D_defaultStride(input, custom_kernel, stride, padding)
 
 
     result_torch = pyTorch_conv(input, custom_kernel, stride, padding)
