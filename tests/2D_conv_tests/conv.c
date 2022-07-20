@@ -2,7 +2,10 @@
 
 
 void convolute(double output [3][3], double input[5][5], double kernel[3][3] )
+
+
 {
+	
     int convolute = 0; // This holds the convolution results for an index.
     int x, y; // Used for input matrix index
 
