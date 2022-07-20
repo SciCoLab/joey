@@ -74,10 +74,13 @@ def test_Devito_pyTorch(input_size, kernel, padding, stride):
 
     result_torch = pyTorch_conv(input, kernel, stride, padding)
 
-    #print ("devito",result_devito)
+    print ("devito",result_devito)
 
-    #print ("torch",result_torch[0][0])
+    print ("torch",result_torch[0][0])
+
+    print("Do they match", np.allclose(result_devito, result_torch))
 
     assert(np.allclose(result_devito, result_torch))
 
 
+test_Devito_pyTorch(5,custom_kernel,2,2)
