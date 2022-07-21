@@ -6,7 +6,6 @@ import numpy as np
 custom_kernel = [[0.5,0.5,0.5] ,[1,0,-1],[0.5,0.5,0.5]]
 
 
-
 @pytest.mark.parametrize("input_size, kernel, padding", [(5, custom_kernel, 2),(50, custom_kernel, 6) ])
 def test_Devito_pyTorch_padding(input_size, kernel, padding ):
     c=0;
@@ -57,8 +56,9 @@ def test_Devito_pyTorch_stride(input_size, kernel, stride ):
 
 
 
+custom_kernel1 = [[0.5,0.5,0.5,0.5,0.5] ,[1,0,-1,0.5,0.5],[0.5,0.5,0.5,0.5,0.5],[1,0,-1,0.5,0.5],[0.5,0.5,0.5,0.5,0.5]]
 
-@pytest.mark.parametrize("input_size, kernel, padding, stride", [(5, custom_kernel, 1, 1),(50, custom_kernel, 6, 4) ])
+@pytest.mark.parametrize("input_size, kernel, padding, stride", [(5, custom_kernel, 1, 1),(50, custom_kernel1, 6, 4) ])
 def test_Devito_pyTorch(input_size, kernel, padding, stride):
     c=0;
     input =[]

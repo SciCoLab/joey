@@ -7,7 +7,7 @@ from joey.net import Net
 
 def pyTorch_conv(input, kernel, stride, padding):
 
-    weights = torch.randn(1,1, 3, 3)
+    weights = torch.randn(1,1, len(kernel), len(kernel))
     weights[0][0] = torch.Tensor(kernel)
 
     custom_input_T = torch.randn(1, 1, len(input), len(input))

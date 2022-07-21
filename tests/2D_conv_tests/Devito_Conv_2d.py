@@ -51,10 +51,7 @@ def conv_devito_2D (input,kernel,stride,padding, print_code = True):
 
     R.data [:]= 0
 
-    off_sets = [-1,0,1]
-    if padding ==0:
-        off_sets = [0,1,2]
-    off_sets = [0,1,2]
+    off_sets = [x for x in range(0,kernel_size)]
 
     k1_offsets = [k1+x for x in off_sets]
 
