@@ -4,6 +4,12 @@ import torch
 import joey as ml
 from joey.net import Net
 
+'''
+    Input should be a 3D matrix like 3x512x512 image where 3 is the channels and 512x512 is the size of image.
+    Similary kernel should be be 3D matrix where 3x5x5, 3 is the channel which 
+    should always match the channels in input image, 5x5 is the kernel filter.
+    Assumptioms - kernel would be of square size like 5x5, 3x3, same goes for image
+'''
 
 def pyTorch_conv(input, kernel, padding, stride):
 
