@@ -13,8 +13,8 @@ from joey.net import Net
 
 def pyTorch_conv(input, kernel, padding, stride):
 
-    weights = torch.randn(1,len(kernel), len(kernel[0]), len(kernel[0]))
-    weights[0] = torch.Tensor(kernel)
+    weights = torch.randn(len(kernel),len(kernel[0]), len(kernel[0][0]), len(kernel[0][0]))
+    weights = torch.Tensor(kernel)
 
     custom_input_T = torch.randn(1, len(input), len(input[0]), len(input[0]))
 
@@ -25,7 +25,7 @@ def pyTorch_conv(input, kernel, padding, stride):
     with torch.no_grad():
         
         torch_conv_op.weight = torch.nn.Parameter(weights)
-        torch_conv_op.bias = torch.nn.Parameter(torch.Tensor([0]))
+        torch_conv_op.bias = torch.nn.Parameter(torch.Tensor([0]*len(kernel)))
 
     result = torch_conv_op(custom_input_T).detach().numpy();
 

@@ -18,7 +18,7 @@ def test_Devito_pyTorch_padding(input_size, kernel, padding, print_results = Fal
         input.append(temp)
 
  #to simulate kernel, image with channel 1
-    kernel = [kernel]
+    kernel = [[kernel]]
     input =[input]
 
     result_devito = conv_devito_2D(input, kernel, padding,1, print_code = print_results)
@@ -47,7 +47,7 @@ def test_Devito_pyTorch_stride(input_size, kernel, stride, print_results = False
         input.append(temp)
 
     #to simulate kernel, image with channel 1
-    kernel = [kernel]
+    kernel = [[kernel]]
     input =[input]
 
     result_devito = conv_devito_2D(input, kernel, 1, stride, print_code = print_results)
@@ -66,8 +66,9 @@ def test_Devito_pyTorch_stride(input_size, kernel, stride, print_results = False
 
 custom_kernel1 = [[0.5,0.5,0.5,0.5,0.5] ,[1,0,-1,0.5,0.5],[0.5,0.5,0.5,0.5,0.5],[1,0,-1,0.5,0.5],[0.5,0.5,0.5,0.5,0.5]]
 
-@pytest.mark.parametrize("input_size, kernel, channels, padding, stride", [(5, custom_kernel, 1, 1, 1),(50, custom_kernel1, 1, 6, 4) ])
-def test_Devito_pyTorch(input_size,kernel, channels, padding, stride, print_results = False):
+@pytest.mark.parametrize("input_size, kernel, channels, no_kernels, padding, stride", [(5, custom_kernel, 3, 3, 1, 1),(50, custom_kernel1, 2,2, 6, 4) ])
+def test_Devito_pyTorch(input_size,kernel,channels, no_kernels, padding, stride, print_results = False):
+    
     c=1;
     input =[]
     for i in range(0,input_size):
@@ -83,14 +84,18 @@ def test_Devito_pyTorch(input_size,kernel, channels, padding, stride, print_resu
         channel_kernel.append(kernel)
         channel_input.append(input)
 
-        
+    kernel = channel_kernel
+    channel_kernel = []
+
+    for i in range(0,no_kernels):
+        channel_kernel.append(kernel)
 
 
     result_torch = pyTorch_conv(channel_input, channel_kernel, padding, stride)
 
     result_devito = conv_devito_2D(channel_input, channel_kernel, padding, stride, print_code = print_results)
     if print_results:
-        print ("torch",result_torch[0])
+        print ("torch",result_torch)
 
         print ("devito",result_devito)
 
@@ -98,3 +103,5 @@ def test_Devito_pyTorch(input_size,kernel, channels, padding, stride, print_resu
     print("Do they match", np.allclose(result_devito, result_torch))
 
     assert(np.allclose(result_devito, result_torch))
+
+test_Devito_pyTorch(5, custom_kernel, 6, 5, 4, 3, True)
