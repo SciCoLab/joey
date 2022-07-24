@@ -1,7 +1,6 @@
 import devito
 from devito import Grid, Function, TimeFunction, Constant, Eq, Inc, \
     ConditionalDimension, SpaceDimension, IncrDimension, Operator
-from matplotlib.pyplot import grid
 import numpy as np
 from sympy import Sum, factor, summation
 
@@ -20,30 +19,31 @@ from itertools import product
 def conv_devito_2D(input,kernel, padding,stride, print_code = True):
 
     no_of_kernels = len(kernel)
+    batch = len(input)
     channels = len(kernel[0])
     input_size = len(input[0][0])
     kernel_size = len(kernel[0][0])
     result_size = (input_size-kernel_size + 2 *padding)//stride + 1 
 
     # input data function
-    I = Function(name="Input_F",shape=(channels,input_size,input_size), dimensions =(SpaceDimension("input_d1"),SpaceDimension("input_d2"),SpaceDimension("input_d3")), space_order= padding, dtype=np.float64)
+    I = Function(name="Input_F",shape=(batch,channels,input_size,input_size), dimensions =(SpaceDimension("input_d1"),SpaceDimension("input_d2"),SpaceDimension("input_d3"),SpaceDimension("input_d4")), space_order= padding, dtype=np.float64)
 
     # function for kernel
     K = Function(name="Kernel_F", shape=(no_of_kernels,channels,kernel_size,kernel_size), dimensions =(SpaceDimension("kernel_d1"),SpaceDimension("kernel_d2"),SpaceDimension("kernel_d3"), SpaceDimension("kernel_d4")), space_order=0, dtype=np.float64)
 
     # Result for convolution
-    R = Function(name="Result_F", shape=(no_of_kernels, result_size,result_size), dimensions =(SpaceDimension("r_d1"),SpaceDimension("r_d2"),SpaceDimension("r_d3")), space_order=0, dtype=np.float64)
+    R = Function(name="Result_F", shape=(batch,no_of_kernels, result_size,result_size), dimensions =(SpaceDimension("r_d1"),SpaceDimension("r_d2"),SpaceDimension("r_d3"),SpaceDimension("r_d4")), space_order=0, dtype=np.float64)
 
     #i for input dimension, k for kernel dimension, r for result dimension (2D array)
-    r3, r1, r2 = R.dimensions
+    r4, r3, r1, r2 = R.dimensions
     k4,k3, k1, k2 = K.dimensions
 
     I.data [:] = input
-    K.data [:]= kernel
+    K.data [:]=  kernel
     R.data [:]= 0
 
     off_sets = [x  for x in range(0,kernel_size )]
-    off_sets_channels = [x  for x in range(0,channels )]
+    off_sets_channels = [x  for x in range(0,channels)]
 
     k1_offsets = k2_offsets = [x for x in off_sets]
     k3_offsets = [x for x in off_sets_channels]
@@ -60,11 +60,11 @@ def conv_devito_2D(input,kernel, padding,stride, print_code = True):
 
 
     r_indicies = product(i3_offsets,r1_offsets,r2_offsets)
-    r = sp.Matrix([I[x] for x in r_indicies])
+    r = sp.Matrix([I[(r4,*x)] for x in r_indicies])
 
     sten = w.dot(r)
 
-    eq = Eq(R[r3,r1,r2], sten)
+    eq = Eq(R[r4,r3,r1,r2], sten)
 
     op = Operator(eq, opt="noop")
     
