@@ -20,7 +20,7 @@ def pyTorch_conv(input, kernel, padding, stride):
 
     custom_input_T= torch.Tensor(input);
 
-    torch_conv_op = torch.nn.Conv2d(len(input),len(kernel), kernel_size=len(kernel), padding=padding , stride=stride)
+    torch_conv_op = torch.nn.Conv2d(len(input[0]),len(kernel), kernel_size=len(kernel[0][0]), padding=padding , stride=stride)
 
     with torch.no_grad():
         
