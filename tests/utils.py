@@ -9,9 +9,9 @@ def compare(devito, pytorch, tolerance):
         pytorch = np.transpose(pytorch)
 
     error = abs(devito - pytorch) / abs(pytorch)
-    max_error = np.nanmax(error)
+    max_error = np.max(error)
 
-    assert(np.isnan(max_error) or max_error < tolerance)
+    assert(max_error < tolerance)
 
 
 def running_in_parallel():
