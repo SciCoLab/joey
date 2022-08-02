@@ -1,14 +1,13 @@
-from array import array
 from itertools import product
-from multiprocessing.dummy import Array
 from devito import Function, Eq, Inc, \
-    ConditionalDimension, SpaceDimension, Operator
+    ConditionalDimension, SpaceDimension
 from sympy import And
 import numpy as np
 import sympy as sp
 from joey import Layer
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
+
 
 class ConvV2(Layer):
     """
@@ -73,124 +72,140 @@ class ConvV2(Layer):
 
     def _error_check(self, kernel_size, input_size, stride, padding,
                      strict_stride_check):
-        if input_size is None or (len(input_size) != 4 and self._conv_d==2) \
-            or (len(input_size) != 5 and self._conv_d==3) :
+        if input_size is None or (len(input_size) != 4 and self._conv_d == 2) \
+                or (len(input_size) != 5 and self._conv_d == 3):
             raise Exception("Input size is incorrect")
 
-        if kernel_size is None or (len(kernel_size) != 3 and self._conv_d==2) \
-            or (len(kernel_size) != 4 and self._conv_d==3):
+        if kernel_size is None or (len(kernel_size) != 3 and
+                                   self._conv_d == 2) or\
+            (len(kernel_size) != 4
+             and self._conv_d == 3):
             raise Exception("Kernel size is incorrect")
 
-        if stride is None or (len(stride) != 2  and self._conv_d==2) \
-            or (len(stride) != 3 and self._conv_d==3):
+        if stride is None or (len(stride) != 2 and self._conv_d == 2) \
+                or (len(stride) != 3 and self._conv_d == 3):
             raise Exception("Stride is incorrect")
 
         if stride[0] < 1 or stride[1] < 1:
             raise Exception("Stride cannot be less than 1")
 
-        if padding is None or (len(padding) != 2 and self._conv_d==2) \
-            or (len(padding) != 3 and self._conv_d==3):
+        if padding is None or (len(padding) != 2 and self._conv_d == 2) \
+                or (len(padding) != 3 and self._conv_d == 3):
             raise Exception("Padding is incorrect")
 
         if padding[0] < 0 or padding[1] < 0:
             raise Exception("Padding cannot be negative")
 
         if strict_stride_check:
-            if self._conv_d ==2:
+            if self._conv_d == 2:
                 map_height = input_size[2] + 2 * padding[0]
                 map_width = input_size[3] + 2 * padding[1]
                 _, kernel_height, kernel_width = kernel_size
 
                 if (map_height - kernel_height) % stride[0] != 0 or \
-                (map_width - kernel_width) % stride[1] != 0:
+                        (map_width - kernel_width) % stride[1] != 0:
                     raise Exception("Stride " + str(stride) + " is not "
                                     "compatible with feature map, kernel and "
                                     "padding sizes. If you want to proceed "
-                                    "anyway, set strict_stride_check=False when "
-                                    "instantiating this object")
-            if self._conv_d ==3:
+                                    "anyway, set strict_stride_check=False "
+                                    "when instantiating this object")
+            if self._conv_d == 3:
                 map_height = input_size[4] + 2 * padding[0]
                 map_width = input_size[3] + 2 * padding[1]
                 map_depth = input_size[2] + 2 * padding[2]
 
-                _,kernel_depth, kernel_height, kernel_width = kernel_size
+                _, kernel_depth, kernel_height, kernel_width = kernel_size
 
                 if (map_height - kernel_height) % stride[0] != 0 or \
-                (map_width - kernel_width) % stride[1] != 0 or \
-                (map_depth - kernel_depth) % stride[2] != 0:
+                    (map_width - kernel_width) % stride[1] != 0 or \
+                        (map_depth - kernel_depth) % stride[2] != 0:
                     raise Exception("Stride " + str(stride) + " is not "
                                     "compatible with feature map, kernel and "
                                     "padding sizes. If you want to proceed "
-                                    "anyway, set strict_stride_check=False when "
-                                    "instantiating this object")
+                                    "anyway, set strict_stride_check=False "
+                                    "when instantiating this object")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
 
         no_of_kernels = kernel_size[0]
 
-        result_height = (input_size[-2]-kernel_size[-2] + 2 *self._padding[0])//self._stride[0] + 1
+        result_height = (input_size[-2]-kernel_size[-2] +
+                         2 * self._padding[0])//self._stride[0] + 1
 
-        result_width = (input_size[-1]-kernel_size[-1] + 2 *self._padding[1])//self._stride[1] + 1
+        result_width = (input_size[-1]-kernel_size[-1] +
+                        2 * self._padding[1])//self._stride[1] + 1
 
-        dimensions = ['dbatch', 'dchannel','dheight', 'dwidth']
-        result_shape = (input_size[0], no_of_kernels, result_height,result_width)
+        dimensions = ['dbatch', 'dchannel', 'dheight', 'dwidth']
+        result_shape = (input_size[0], no_of_kernels,
+                        result_height, result_width)
 
-        #modifying dims for 3d conv
+        # modifying dims for 3d conv
         if self._conv_d == 3:
-            dimensions = ['dbatch', 'dchannel', 'd_depth','dheight', 'dwidth']
+            dimensions = ['dbatch', 'dchannel', 'd_depth', 'dheight', 'dwidth']
             result_depth = \
-                (input_size[-3]-kernel_size[-3] + 2 *self._padding[2])//self._stride[2] + 1
+                (input_size[-3]-kernel_size[-3] + 2 *
+                 self._padding[2])//self._stride[2] + 1
             result_shape = \
-                (input_size[0], no_of_kernels, result_depth,result_height,result_width)
-
+                (input_size[0], no_of_kernels,
+                 result_depth, result_height, result_width)
 
         # input data function
         input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
 
-        input_func = Function(name="Input_F",shape=(input_size), dimensions = input_dimensions
-                ,space_order= (0,self._padding[0],self._padding[1]), dtype=np.float64)
+        input_func = Function(name="Input_F", shape=(input_size),
+                              dimensions=input_dimensions, space_order=(
+            0, self._padding[0], self._padding[1]), dtype=np.float64)
 
         # function for kernel
         kernel_dims = [SpaceDimension("kernel_"+x) for x in dimensions]
 
-        kernel_func = Function(name="Kernel_F", shape=(kernel_size)
-                ,dimensions =(kernel_dims), space_order=0, dtype=np.float64)
+        kernel_func = Function(name="Kernel_F", shape=(kernel_size),
+                               dimensions=(kernel_dims), space_order=0,
+                               dtype=np.float64)
 
         # Result for convolution
         result_dimensions = [SpaceDimension("Result_"+x) for x in dimensions]
 
-        result_func = Function(name="Result_F", shape=result_shape
-            , dimensions =result_dimensions, space_order=0, dtype=np.float64)
+        result_func = Function(name="Result_F", shape=result_shape,
+                               dimensions=result_dimensions, space_order=0,
+                               dtype=np.float64)
 
         bias_dimensions = [SpaceDimension("bias"+x) for x in ['d']]
 
-        bias = Function(name="bias_F", shape=(kernel_size[0],)
-                , dimensions =bias_dimensions, space_order=0, dtype=np.float64)
+        bias = Function(name="bias_F", shape=(
+            kernel_size[0],), dimensions=bias_dimensions, space_order=0,
+            dtype=np.float64)
 
-        kernel_grad_dimensions =  [SpaceDimension("kernel_grad"+x) for x in dimensions]
+        kernel_grad_dimensions = [SpaceDimension(
+            "kernel_grad"+x) for x in dimensions]
 
-        kernel_grad = Function(name="kgrad_%s" % name_allocator_func(),shape=(kernel_size)
-                       ,dimensions =kernel_grad_dimensions, space_order=0, dtype=np.float64)
+        kernel_grad = Function(name="kgrad_%s" % name_allocator_func(), shape=(
+            kernel_size), dimensions=kernel_grad_dimensions, space_order=0,
+            dtype=np.float64)
 
-        output_grad_dimensions = [SpaceDimension("output_grad"+x) for x in dimensions]
+        output_grad_dimensions = [SpaceDimension(
+            "output_grad"+x) for x in dimensions]
 
-        output_grad = Function(name="outgrad_%s" % name_allocator_func(),shape = result_shape
-                    ,dimensions = output_grad_dimensions, space_order=0, dtype=np.float64)
+        output_grad = Function(name="outgrad_%s" % name_allocator_func(
+        ), shape=result_shape, dimensions=output_grad_dimensions,
+            space_order=0, dtype=np.float64)
 
         bias_grad_dimensions = [SpaceDimension("bias"+x) for x in ['d']]
 
-        bias_grad = Function(name="bgrad_%s" % name_allocator_func(),shape=(kernel_size[0],)
-                , dimensions =bias_grad_dimensions, space_order=0, dtype=np.float64)
+        bias_grad = Function(name="bgrad_%s" % name_allocator_func(), shape=(
+            kernel_size[0],), dimensions=bias_grad_dimensions, space_order=0,
+            dtype=np.float64)
 
-        return (kernel_func, input_func, result_func, bias, kernel_grad, output_grad, bias_grad)
+        return (kernel_func, input_func, result_func, bias, kernel_grad,
+                output_grad, bias_grad)
 
     def execute(self, input_data, bias, kernel_data=None) -> np.array:
         if kernel_data is not None:
             self._K.data[:] = kernel_data
 
         self._bias.data[:] = bias
-        self._I.data [:] = input_data
+        self._I.data[:] = input_data
         self._R.data[:] = 0
 
         return super().execute()
@@ -200,34 +215,42 @@ class ConvV2(Layer):
         result_dimensions = self._R.dimensions
         bias = self._bias.dimensions
 
-        k_height_offsets = list(range(0,self._kernel_size[-2]))
-        k_width_offsets = list(range(0,self._kernel_size[-1]))
+        k_height_offsets = list(range(0, self._kernel_size[-2]))
+        k_width_offsets = list(range(0, self._kernel_size[-1]))
 
-        off_sets_channels = list(range(0,self._kernel_size[1]))
+        off_sets_channels = list(range(0, self._kernel_size[1]))
 
-        #indices of kernel matrix for convolution
-        k_indices = product(off_sets_channels,k_height_offsets,k_width_offsets)
+        # indices of kernel matrix for convolution
+        k_indices = product(off_sets_channels,
+                            k_height_offsets, k_width_offsets)
 
         r_height_offsets = [result_dimensions[-2]*self._stride[0]+x
-                                -self._padding[0] for x in k_height_offsets]
+                            - self._padding[0] for x in k_height_offsets]
 
         r_width_offsets = [result_dimensions[-1]*self._stride[1]+x
-                                -self._padding[1] for x in k_width_offsets]
+                           - self._padding[1] for x in k_width_offsets]
 
-        #indices of input based on resullt matrix for convolution  
-        r_indicies = product(off_sets_channels,r_height_offsets, r_width_offsets)
+        # indices of input based on resullt matrix for convolution
+        r_indicies = product(
+            off_sets_channels, r_height_offsets, r_width_offsets)
 
-        #modifying indices for 3d convolution operation
-        if self._conv_d ==3:
-            k_depth_offsets = list(range(0,self._kernel_size[-3]))
-            r_depth_offsets = [result_dimensions[-3]*self._stride[2]+x -self._padding[2]
-                                for x in k_depth_offsets]
-            k_indices = product(off_sets_channels,k_depth_offsets, k_height_offsets,k_width_offsets)
-            r_indicies = product(off_sets_channels,r_depth_offsets,r_height_offsets,r_width_offsets)
+        # modifying indices for 3d convolution operation
+        if self._conv_d == 3:
+            k_depth_offsets = list(range(0, self._kernel_size[-3]))
+            r_depth_offsets = [result_dimensions[-3]*self._stride[2]+x
+                               - self._padding[2]
+                               for x in k_depth_offsets]
+            k_indices = product(off_sets_channels, k_depth_offsets,
+                                k_height_offsets, k_width_offsets)
+            r_indicies = product(
+                off_sets_channels, r_depth_offsets,
+                r_height_offsets, r_width_offsets)
 
-        weight_matrix = sp.Matrix([self._K[(result_dimensions[1],*x)] for x in k_indices])
+        weight_matrix = sp.Matrix(
+            [self._K[(result_dimensions[1], *x)] for x in k_indices])
 
-        r_indices_matrix = sp.Matrix([self._I[(result_dimensions[0],*x)] for x in r_indicies])
+        r_indices_matrix = sp.Matrix(
+            [self._I[(result_dimensions[0], *x)] for x in r_indicies])
 
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
@@ -261,15 +284,17 @@ class ConvV2(Layer):
 
         if next_layer is not None:
             next_dims = next_layer.result_gradients.dimensions
-            #TODO: Better names for these dimensions
-            cd1 = ConditionalDimension(name="cd_%s" % alloc(), parent=kernel_dims[2],
+            # TODO: Better names for these dimensions
+            cd1 = ConditionalDimension(name="cd_%s" % alloc(),
+                                       parent=kernel_dims[2],
                                        condition=And(next_dims[2] - height +
                                                      1 + kernel_dims[2] >= 0,
                                                      next_dims[2] - height +
                                                      1 + kernel_dims[2] <
                                                      layer.result_gradients
                                                      .shape[2]))
-            cd2 = ConditionalDimension(name="cd_%s" % alloc(), parent=kernel_dims[3],
+            cd2 = ConditionalDimension(name="cd_%s" % alloc(),
+                                       parent=kernel_dims[3],
                                        condition=And(next_dims[3] - width + 1 +
                                                      kernel_dims[3] >= 0,
                                                      next_dims[3] - width + 1 +
@@ -339,12 +364,14 @@ class Conv3D(ConvV2):
     """
 
     def __init__(self, kernel_size, input_size,
-                 stride=(1, 1,1), padding=(0, 0, 0),
+                 stride=(1, 1, 1), padding=(0, 0, 0),
                  activation=None, generate_code=False,
                  strict_stride_check=True):
         conv_dimensions = 3
-        super().__init__( kernel_size, input_size,conv_dimensions,
-                        stride, padding,activation, generate_code,strict_stride_check)
+        super().__init__(kernel_size, input_size, conv_dimensions,
+                         stride, padding, activation, generate_code,
+                         strict_stride_check)
+
 
 class Conv2DV2(ConvV2):
     """
@@ -393,5 +420,6 @@ class Conv2DV2(ConvV2):
                  activation=None, generate_code=False,
                  strict_stride_check=True):
         conv_dimensions = 2
-        super().__init__(kernel_size, input_size,conv_dimensions,
-                        stride, padding,activation, generate_code,strict_stride_check)
+        super().__init__(kernel_size, input_size, conv_dimensions,
+                         stride, padding, activation, generate_code,
+                         strict_stride_check)
