@@ -2,16 +2,13 @@ import numpy as np
 from os import environ
 
 
-def compare(devito, pytorch, tolerance):
+def compare(joey, pytorch, tolerance):
     pytorch = pytorch.detach().numpy()
 
-    if devito.shape != pytorch.shape:
+    if joey.shape != pytorch.shape:
         pytorch = np.transpose(pytorch)
 
-    error = abs(devito - pytorch) / abs(pytorch)
-    max_error = np.max(error)
-
-    assert(max_error < tolerance)
+    assert np.allclose(joey, pytorch, atol=tolerance)
 
 
 def running_in_parallel():

@@ -127,8 +127,5 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     assert (np.allclose(result_joey, result_torch))
 
 
-'''
-test_joey_pytorch_conv3d((5,3,5,9,9), (6,3,3,3), 2, 1, False)
-
-test_joey_pytorch_conv2d((1,3,7,9), (6,2,3), 2, 1, False)
-'''
+# test_joey_pytorch_conv3d((5,3,5,9,9), (6,3,3,3), 2, 1, False)
+# test_joey_pytorch_conv2d((1,3,7,9), (6,2,3), 2, 1, False)

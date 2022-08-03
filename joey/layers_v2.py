@@ -22,6 +22,9 @@ class ConvV2(Layer):
     input_size : (int, int, int, int)
         The shape of input data expressed as
         (batch size, channels, rows, columns).
+    dimensions: int
+        The dimension of conv operation i.e.
+        if the convolution is 1d, 2d or so on
     name_allocator_func : zero-argument function, optional
         See Layer.__doc__.
     dim_allocator_func : one-argument function, optional
@@ -51,14 +54,18 @@ class ConvV2(Layer):
         is intentional, its aim is avoiding any out-of-bounds accesses.
     """
 
-    def __init__(self, kernel_size, input_size, conv_dimensions,
+    def __init__(self, kernel_size, input_size, dimensions,
                  stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=False,
                  strict_stride_check=True):
         # Internal kernel size (self._kernel_size) is expressed as
         # (output channels / kernel count, input channels, rows, columns).
-        self._conv_d = conv_dimensions
+        self._dims = dimensions
 
+        if (type(padding) is int):
+            padding = tuple([padding] * self._dims)
+        if (type(stride) is int):
+            stride = tuple([stride] * self._dims)
         self._error_check(kernel_size, input_size, stride, padding,
                           strict_stride_check)
 
@@ -72,90 +79,60 @@ class ConvV2(Layer):
 
     def _error_check(self, kernel_size, input_size, stride, padding,
                      strict_stride_check):
-        if input_size is None or (len(input_size) != 4 and self._conv_d == 2) \
-                or (len(input_size) != 5 and self._conv_d == 3):
+        if input_size is None or (len(input_size) != self._dims+2):
             raise Exception("Input size is incorrect")
 
-        if kernel_size is None or (len(kernel_size) != 3 and
-                                   self._conv_d == 2) or\
-            (len(kernel_size) != 4
-             and self._conv_d == 3):
+        if kernel_size is None or (len(kernel_size) != self._dims+1):
             raise Exception("Kernel size is incorrect")
 
-        if stride is None or (len(stride) != 2 and self._conv_d == 2) \
-                or (len(stride) != 3 and self._conv_d == 3):
+        if stride is None or (len(stride) != self._dims):
             raise Exception("Stride is incorrect")
 
-        if stride[0] < 1 or stride[1] < 1:
-            raise Exception("Stride cannot be less than 1")
-
-        if padding is None or (len(padding) != 2 and self._conv_d == 2) \
-                or (len(padding) != 3 and self._conv_d == 3):
+        if padding is None or (len(padding) != self._dims):
             raise Exception("Padding is incorrect")
 
-        if padding[0] < 0 or padding[1] < 0:
-            raise Exception("Padding cannot be negative")
+        for i in range(0, self._dims):
+
+            if stride[i] < 1:
+                raise Exception("Stride cannot be less than 1")
+
+            if padding[i] < 0:
+                raise Exception("Padding cannot be negative")
 
         if strict_stride_check:
-            if self._conv_d == 2:
-                map_height = input_size[2] + 2 * padding[0]
-                map_width = input_size[3] + 2 * padding[1]
-                _, kernel_height, kernel_width = kernel_size
-
-                if (map_height - kernel_height) % stride[0] != 0 or \
-                        (map_width - kernel_width) % stride[1] != 0:
-                    raise Exception("Stride " + str(stride) + " is not "
-                                    "compatible with feature map, kernel and "
-                                    "padding sizes. If you want to proceed "
-                                    "anyway, set strict_stride_check=False "
-                                    "when instantiating this object")
-            if self._conv_d == 3:
-                map_height = input_size[4] + 2 * padding[0]
-                map_width = input_size[3] + 2 * padding[1]
-                map_depth = input_size[2] + 2 * padding[2]
-
-                _, kernel_depth, kernel_height, kernel_width = kernel_size
-
-                if (map_height - kernel_height) % stride[0] != 0 or \
-                    (map_width - kernel_width) % stride[1] != 0 or \
-                        (map_depth - kernel_depth) % stride[2] != 0:
-                    raise Exception("Stride " + str(stride) + " is not "
-                                    "compatible with feature map, kernel and "
-                                    "padding sizes. If you want to proceed "
-                                    "anyway, set strict_stride_check=False "
-                                    "when instantiating this object")
+            input_d = input_size[-self._dims+i] + 2 * padding[i]
+            if (input_d - kernel_size[-self._dims+i]) % stride[i] != 0:
+                raise Exception("Stride " + str(stride) + " is not "
+                                "compatible with feature map, kernel and "
+                                "padding sizes. If you want to proceed "
+                                "anyway, set strict_stride_check=False "
+                                "when instantiating this object")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
 
         no_of_kernels = kernel_size[0]
+        dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
 
-        result_height = (input_size[-2]-kernel_size[-2] +
-                         2 * self._padding[0])//self._stride[0] + 1
+        dimensions = ['dbatch', 'dchannel']
+        result_shape = []
+        # generating  in the order depth, height, width ,
+        # hence arr[-3], arr[-2] and so on
+        for i in range(0, self._dims):
+            result_d = (input_size[(-self._dims+i)] -
+                        kernel_size[(-self._dims+i)] +
+                        2 * self._padding[i])//self._stride[i] + 1
+            result_shape.append(result_d)
+            dimensions.append('d_'+dim_dict.get(self._dims-i, self._dims-i))
 
-        result_width = (input_size[-1]-kernel_size[-1] +
-                        2 * self._padding[1])//self._stride[1] + 1
-
-        dimensions = ['dbatch', 'dchannel', 'dheight', 'dwidth']
-        result_shape = (input_size[0], no_of_kernels,
-                        result_height, result_width)
-
-        # modifying dims for 3d conv
-        if self._conv_d == 3:
-            dimensions = ['dbatch', 'dchannel', 'd_depth', 'dheight', 'dwidth']
-            result_depth = \
-                (input_size[-3]-kernel_size[-3] + 2 *
-                 self._padding[2])//self._stride[2] + 1
-            result_shape = \
-                (input_size[0], no_of_kernels,
-                 result_depth, result_height, result_width)
+        result_shape = (input_size[0], no_of_kernels, *result_shape)
 
         # input data function
         input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
 
         input_func = Function(name="Input_F", shape=(input_size),
                               dimensions=input_dimensions, space_order=(
-            0, self._padding[0], self._padding[1]), dtype=np.float64)
+            self._padding[0]), dtype=np.float64)
 
         # function for kernel
         kernel_dims = [SpaceDimension("kernel_"+x) for x in dimensions]
@@ -171,7 +148,7 @@ class ConvV2(Layer):
                                dimensions=result_dimensions, space_order=0,
                                dtype=np.float64)
 
-        bias_dimensions = [SpaceDimension("bias"+x) for x in ['d']]
+        bias_dimensions = [SpaceDimension("bias_"+x) for x in ['d']]
 
         bias = Function(name="bias_F", shape=(
             kernel_size[0],), dimensions=bias_dimensions, space_order=0,
@@ -191,7 +168,7 @@ class ConvV2(Layer):
         ), shape=result_shape, dimensions=output_grad_dimensions,
             space_order=0, dtype=np.float64)
 
-        bias_grad_dimensions = [SpaceDimension("bias"+x) for x in ['d']]
+        bias_grad_dimensions = [SpaceDimension("bias_"+x) for x in ['d']]
 
         bias_grad = Function(name="bgrad_%s" % name_allocator_func(), shape=(
             kernel_size[0],), dimensions=bias_grad_dimensions, space_order=0,
@@ -214,37 +191,28 @@ class ConvV2(Layer):
 
         result_dimensions = self._R.dimensions
         bias = self._bias.dimensions
-
-        k_height_offsets = list(range(0, self._kernel_size[-2]))
-        k_width_offsets = list(range(0, self._kernel_size[-1]))
+        k_dims_offsets = []
+        for i in range(0, self._dims):
+            k_dims_offsets.append(
+                list(range(0, self._kernel_size[-self._dims + i])))
 
         off_sets_channels = list(range(0, self._kernel_size[1]))
 
         # indices of kernel matrix for convolution
-        k_indices = product(off_sets_channels,
-                            k_height_offsets, k_width_offsets)
+        k_indices = product(off_sets_channels, * k_dims_offsets)
 
-        r_height_offsets = [result_dimensions[-2]*self._stride[0]+x
-                            - self._padding[0] for x in k_height_offsets]
+        r_dims_offsets = []
 
-        r_width_offsets = [result_dimensions[-1]*self._stride[1]+x
-                           - self._padding[1] for x in k_width_offsets]
+        # generating offsets in the order depth, height, width ,
+        # hence arr[-3], arr[-2] and so on
+        for i in range(0, self._dims):
+            r_dim_offsets = [result_dimensions[-self._dims + i]
+                             * self._stride[i]+x
+                             - self._padding[i] for x in k_dims_offsets[i]]
+            r_dims_offsets.append(r_dim_offsets)
 
         # indices of input based on resullt matrix for convolution
-        r_indicies = product(
-            off_sets_channels, r_height_offsets, r_width_offsets)
-
-        # modifying indices for 3d convolution operation
-        if self._conv_d == 3:
-            k_depth_offsets = list(range(0, self._kernel_size[-3]))
-            r_depth_offsets = [result_dimensions[-3]*self._stride[2]+x
-                               - self._padding[2]
-                               for x in k_depth_offsets]
-            k_indices = product(off_sets_channels, k_depth_offsets,
-                                k_height_offsets, k_width_offsets)
-            r_indicies = product(
-                off_sets_channels, r_depth_offsets,
-                r_height_offsets, r_width_offsets)
+        r_indicies = product(off_sets_channels, *r_dims_offsets)
 
         weight_matrix = sp.Matrix(
             [self._K[(result_dimensions[1], *x)] for x in k_indices])
@@ -367,8 +335,8 @@ class Conv3D(ConvV2):
                  stride=(1, 1, 1), padding=(0, 0, 0),
                  activation=None, generate_code=False,
                  strict_stride_check=True):
-        conv_dimensions = 3
-        super().__init__(kernel_size, input_size, conv_dimensions,
+        dimensions = 3
+        super().__init__(kernel_size, input_size, dimensions,
                          stride, padding, activation, generate_code,
                          strict_stride_check)
 
@@ -419,7 +387,7 @@ class Conv2DV2(ConvV2):
                  stride=(1, 1), padding=(0, 0),
                  activation=None, generate_code=False,
                  strict_stride_check=True):
-        conv_dimensions = 2
-        super().__init__(kernel_size, input_size, conv_dimensions,
+        dimensions = 2
+        super().__init__(kernel_size, input_size, dimensions,
                          stride, padding, activation, generate_code,
                          strict_stride_check)
