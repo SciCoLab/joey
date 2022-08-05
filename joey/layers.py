@@ -114,14 +114,14 @@ class Conv(Layer):
         t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = dim_allocator_func(10)
 
         gridK = Grid(shape=kernel_size, dimensions=(t1, t2, t3, t4))
-        K = Function(name="K_%s" % name_allocator_func(), grid=gridK, space_order=0,
-                     dtype=np.float64)
+        K = Function(name="K_%s" % name_allocator_func(), grid=gridK,
+                     space_order=0, dtype=np.float64)
 
         gridB = Grid(shape=(input_size[0], input_size[1],
                             map_height, map_width),
                      dimensions=(t5, t6, t7, t8))
-        B = Function(name="B_%s" % name_allocator_func(), grid=gridB, space_order=0,
-                     dtype=np.float64)
+        B = Function(name="B_%s" % name_allocator_func(), grid=gridB,
+                     space_order=0, dtype=np.float64)
 
         gridR = Grid(shape=(input_size[0], kernel_size[0],
                             (map_height - kernel_height + self._stride[0])
@@ -129,8 +129,8 @@ class Conv(Layer):
                             (map_width - kernel_width + self._stride[1])
                             // self._stride[1]),
                      dimensions=(t5, t1, t9, t10))
-        R = Function(name="R_%s" % name_allocator_func(), grid=gridR, space_order=0,
-                     dtype=np.float64)
+        R = Function(name="R_%s" % name_allocator_func(), grid=gridR,
+                     space_order=0, dtype=np.float64)
 
         bias_grid = Grid(shape=kernel_size[0],
                          dimensions=(t1,))
@@ -215,14 +215,16 @@ class Conv(Layer):
         if next_layer is not None:
             next_dims = next_layer.result_gradients.dimensions
             # TODO: Better names for these dimensions
-            cd1 = ConditionalDimension(name="cd_%s" % alloc(), parent=kernel_dims[2],
+            cd1 = ConditionalDimension(name="cd_%s" % alloc(),
+                                       parent=kernel_dims[2],
                                        condition=And(next_dims[2] - height +
                                                      1 + kernel_dims[2] >= 0,
                                                      next_dims[2] - height +
                                                      1 + kernel_dims[2] <
                                                      layer.result_gradients
                                                      .shape[2]))
-            cd2 = ConditionalDimension(name="cd_%s" % alloc(), parent=kernel_dims[3],
+            cd2 = ConditionalDimension(name="cd_%s" % alloc(),
+                                       parent=kernel_dims[3],
                                        condition=And(next_dims[3] - width + 1 +
                                                      kernel_dims[3] >= 0,
                                                      next_dims[3] - width + 1 +
@@ -355,8 +357,8 @@ class Pooling(Layer):
         gridB = Grid(shape=(input_size[0], input_size[1], map_height,
                             map_width),
                      dimensions=(t1, t2, t3, t4))
-        B = Function(name="B_%s" % name_allocator_func(), grid=gridB, space_order=0,
-                     dtype=np.float64)
+        B = Function(name="B_%s" % name_allocator_func(), grid=gridB,
+                     space_order=0, dtype=np.float64)
 
         gridR = Grid(shape=(input_size[0], input_size[1],
                             (map_height - kernel_height + self._stride[0])
@@ -365,8 +367,8 @@ class Pooling(Layer):
                             // self._stride[1]),
                      dimensions=(t1, t2, t5, t6))
 
-        R = Function(name="R_%s" % name_allocator_func(), grid=gridR, space_order=0,
-                     dtype=np.float64)
+        R = Function(name="R_%s" % name_allocator_func(), grid=gridR,
+                     space_order=0, dtype=np.float64)
 
         output_grad = Function(name="outgrad_%s" % name_allocator_func(),
                                grid=gridR,
@@ -528,20 +530,20 @@ class FullyConnected(Layer):
         self._dimensions = (t1, t2, t3)
 
         gridW = Grid(shape=weight_size, dimensions=(t1, t2))
-        W = Function(name="W_%s" % name_allocator_func(), grid=gridW, space_order=0,
-                     dtype=np.float64)
+        W = Function(name="W_%s" % name_allocator_func(), grid=gridW,
+                     space_order=0, dtype=np.float64)
 
         gridV_dimensions = (t2, t3)
         gridR_dimensions = (t1, t3)
         gridR_shape = (weight_size[0], input_size[1])
 
         gridV = Grid(shape=input_size, dimensions=gridV_dimensions)
-        V = Function(name="V_%s" % name_allocator_func(), grid=gridV, space_order=0,
-                     dtype=np.float64)
+        V = Function(name="V_%s" % name_allocator_func(), grid=gridV,
+                     space_order=0, dtype=np.float64)
 
         gridR = Grid(shape=gridR_shape, dimensions=gridR_dimensions)
-        R = Function(name="R_%s" % name_allocator_func(), grid=gridR, space_order=0,
-                     dtype=np.float64)
+        R = Function(name="R_%s" % name_allocator_func(), grid=gridR,
+                     space_order=0, dtype=np.float64)
 
         if self._activation is not None:
             self._T = Function(name="T_%s" % name_allocator_func(), grid=gridR,
@@ -648,10 +650,10 @@ class FullyConnectedSoftmax(FullyConnected):
         a, b, c = self._dimensions
 
         gridC = Grid(shape=self._R.shape[1], dimensions=(c,))
-        C = Function(name="C_%s" % self._name_allocator(), grid=gridC, space_order=0,
-                     dtype=np.float64)
-        M = Function(name="M_%s" % self._name_allocator(), grid=gridC, space_order=0,
-                     dtype=np.float64)
+        C = Function(name="C_%s" % self._name_allocator(), grid=gridC,
+                     space_order=0, dtype=np.float64)
+        M = Function(name="M_%s" % self._name_allocator(), grid=gridC,
+                     space_order=0, dtype=np.float64)
 
         return ([Inc(self._T[a, c], self._K[a, b] * self._I[b, c]),
                  Inc(self._T[a, c], self._bias[a]),
@@ -698,20 +700,20 @@ class Flat(Layer):
         t1, t2, t3, t4, t5 = dim_allocator_func(5)
 
         gridI = Grid(shape=input_size, dimensions=(t1, t2, t3, t4))
-        I = Function(name="I_%s" % name_allocator_func(), grid=gridI, space_order=0,
-                     dtype=np.float64)
+        input_f = Function(name="I_%s" % name_allocator_func(), grid=gridI,
+                           space_order=0, dtype=np.float64)
 
         gridR = Grid(shape=(input_size[1]*input_size[2]*input_size[3],
                             input_size[0]),
                      dimensions=(t5, t1))
-        R = Function(name="R_%s" % name_allocator_func(), grid=gridR, space_order=0,
-                     dtype=np.float64)
+        R = Function(name="R_%s" % name_allocator_func(), grid=gridR,
+                     space_order=0, dtype=np.float64)
 
         output_grad = Function(name="ograd_%s" % name_allocator_func(),
                                grid=gridR,
                                space_order=0, dtype=np.float64)
 
-        return (None, I, R, None, None, output_grad, None)
+        return (None, input_f, R, None, None, output_grad, None)
 
     def execute(self, input_data):
         self._I.data[:] = input_data

@@ -19,6 +19,8 @@ tramp
 # flymake-mode
 *_flymake.*
 
+.vscode
+
 # eshell files
 /eshell/history
 /eshell/lastdir
@@ -189,3 +191,11 @@ dmypy.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python,emacs
 
+mnist/MNIST/raw/t10k-images-idx3-ubyte
+mnist/MNIST/raw/t10k-images-idx3-ubyte.gz
+mnist/MNIST/raw/t10k-labels-idx1-ubyte
+mnist/MNIST/raw/t10k-labels-idx1-ubyte.gz
+mnist/MNIST/raw/train-images-idx3-ubyte
+mnist/MNIST/raw/train-images-idx3-ubyte.gz
+mnist/MNIST/raw/train-labels-idx1-ubyte
+mnist/MNIST/raw/train-labels-idx1-ubyte.gz
