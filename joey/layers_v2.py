@@ -1,7 +1,6 @@
 from itertools import product
-from devito import Function, Eq, Inc, \
-    ConditionalDimension, SpaceDimension
-from sympy import And
+from devito import Function, Eq, Inc, ConditionalDimension, SpaceDimension, sumall
+from sympy import Sum, Symbol, sympify
 import numpy as np
 import sympy as sp
 from joey import Layer
@@ -445,16 +444,10 @@ class InstanceNorm(Layer):
         # (output channels / kernel count, input channels, rows, columns).
         self._dims = dimensions
 
-        if (type(padding) is int):
-            padding = tuple([padding] * self._dims)
-        if (type(stride) is int):
-            stride = tuple([stride] * self._dims)
         self._error_check(input_size)
 
-        self._stride = stride
-        self._padding = padding
 
-        super().__init__(self._kernel_size, input_size, activation,
+        super().__init__(None, input_size, activation,
                          alloc, dim_alloc,
                          generate_code)
 
@@ -462,7 +455,7 @@ class InstanceNorm(Layer):
         if input_size is None or (len(input_size) != self._dims+2):
             raise Exception("Input size is incorrect")
 
-    def _allocate(self, input_size, name_allocator_func,
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
 
         dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
@@ -482,8 +475,7 @@ class InstanceNorm(Layer):
         input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
 
         input_func = Function(name="Input_F", shape=(input_size),
-                              dimensions=input_dimensions, space_order=(
-            self._padding[0]), dtype=np.float64)
+                              dimensions=input_dimensions, space_order=0, dtype=np.float64)
 
         # Result for convolution
         result_dimensions = [SpaceDimension("Result_"+x) for x in dimensions]
@@ -514,7 +506,7 @@ class InstanceNorm(Layer):
         return (None, input_func, result_func, bias, None,
                 output_grad, bias_grad)
 
-    def execute(self, input_data, bias, kernel_data=None) -> np.array:
+    def execute(self, input_data) -> np.array:
 
         self._I.data[:] = input_data
         self._R.data[:] = 0
@@ -524,35 +516,54 @@ class InstanceNorm(Layer):
     def equations(self):
 
         result_dimensions = self._R.dimensions
+        result_shape = self._R.shape
         bias = self._bias.dimensions
-      
-        r_dims_offsets = []
-
-        # generating offsets in the order depth, height, width ,
-        # hence arr[-3], arr[-2] and so on
+        k_dims_offsets = []
         for i in range(0, self._dims):
-            r_dim_offsets = [result_dimensions[-self._dims + i]
-                             * self._stride[i]+x
-                             - self._padding[i] for x in k_dims_offsets[i]]
-            r_dims_offsets.append(r_dim_offsets)
+            k_dims_offsets.append(
+                list(range(0, result_shape[-self._dims + i])))
+
+        off_sets_channels = list(range(0, result_shape[1]))
+
+        # indices of kernel matrix for convolution
+        k_indices = product(off_sets_channels, * k_dims_offsets)
+
+        temp_func = Function(name="Ones_F", shape=result_shape,
+                               dimensions=result_dimensions, space_order=0,
+                               dtype=np.float64)
+
 
         # indices of input based on resullt matrix for convolution
-        r_indicies = product(off_sets_channels, *r_dims_offsets)
-
+        r_indicies = product(off_sets_channels, *k_dims_offsets)
+        temp_func.data[:] = 1
         weight_matrix = sp.Matrix(
-            [self._K[(result_dimensions[1], *x)] for x in k_indices])
+            [temp_func[(result_dimensions[0], *x)] for x in k_indices])
 
         r_indices_matrix = sp.Matrix(
             [self._I[(result_dimensions[0], *x)] for x in r_indicies])
-
+        M = np.prod(result_shape[2:])
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
 
-        eqs = [Eq(self._R[result_dimensions], sten)]
-        eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
-        if self._activation is not None:
-            eqs.append(Eq(self._R[result_dimensions],
-                          self._activation(self._R[result_dimensions])))
+        mean = (sten/M)
+        num = (self._I[result_dimensions] - mean )
+
+        eqs = [Eq(self._R[result_dimensions],num)]
+        r_indicies = product(off_sets_channels, *k_dims_offsets)
+        r_indices_matrix = sp.Matrix(
+            [self._R[(result_dimensions[0], *x)]**2 for x in r_indicies])
+        sten2 = r_indices_matrix.dot(weight_matrix)
+
+        eqs += [Eq(self._I[result_dimensions], sten2/M)]
+
+        eqs += [Eq(self._R[result_dimensions], self._R[result_dimensions]/sp.sqrt(self._I[result_dimensions]+0.00001))]
+        
+
+        # eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
+
+        # if self._activation is not None:
+        #     eqs.append(Eq(self._R[result_dimensions],
+        #                   self._activation(self._R[result_dimensions])))
         return (eqs, [])
 
     def backprop_equations(self, prev_layer, next_layer):
