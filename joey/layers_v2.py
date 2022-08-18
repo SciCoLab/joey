@@ -446,7 +446,6 @@ class InstanceNorm(Layer):
 
         self._error_check(input_size)
 
-
         super().__init__(None, input_size, activation,
                          alloc, dim_alloc,
                          generate_code)
@@ -528,10 +527,9 @@ class InstanceNorm(Layer):
         # indices of kernel matrix for convolution
         k_indices = product(off_sets_channels, * k_dims_offsets)
 
-        temp_func = Function(name="Ones_F", shape=result_shape,
-                               dimensions=result_dimensions, space_order=0,
-                               dtype=np.float64)
-
+        temp_func = Function(name="Ones_Filter", shape=result_shape,
+                             dimensions=result_dimensions, space_order=0,
+                             dtype=np.float64)
 
         # indices of input based on resullt matrix for convolution
         r_indicies = product(off_sets_channels, *k_dims_offsets)
@@ -541,29 +539,36 @@ class InstanceNorm(Layer):
 
         r_indices_matrix = sp.Matrix(
             [self._I[(result_dimensions[0], *x)] for x in r_indicies])
-        M = np.prod(result_shape[2:])
-        # stencil operation corresponding to the convolution
-        sten = weight_matrix.dot(r_indices_matrix)
+        N = np.prod(result_shape[2:])
+        # stencil operation corresponding to the convolution with kernel of input_shape with value to simulate sum of input_mat
+        sum_input_sten = weight_matrix.dot(r_indices_matrix)
 
-        mean = (sten/M)
-        num = (self._I[result_dimensions] - mean )
+        mean = (sum_input_sten/N)
+        '''
+        .. math::
 
-        eqs = [Eq(self._R[result_dimensions],num)]
+        y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} 
+
+        '''
+        
+        # deviation from mean
+        eqs = [Eq(self._R[result_dimensions], self._I[result_dimensions] - mean)]
         r_indicies = product(off_sets_channels, *k_dims_offsets)
         r_indices_matrix = sp.Matrix(
             [self._R[(result_dimensions[0], *x)]**2 for x in r_indicies])
-        sten2 = r_indices_matrix.dot(weight_matrix)
 
-        eqs += [Eq(self._I[result_dimensions], sten2/M)]
+        sum_var_stencil = r_indices_matrix.dot(weight_matrix)
 
-        eqs += [Eq(self._R[result_dimensions], self._R[result_dimensions]/sp.sqrt(self._I[result_dimensions]+0.00001))]
-        
+        eqs += [Eq(self._I[result_dimensions], sum_var_stencil/N)]
+        epsilon = 0.00001
+        eqs += [Eq(self._R[result_dimensions], self._R[result_dimensions] /
+                   sp.sqrt(self._I[result_dimensions]+epsilon))]
 
-        # eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
+        eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
 
-        # if self._activation is not None:
-        #     eqs.append(Eq(self._R[result_dimensions],
-        #                   self._activation(self._R[result_dimensions])))
+        if self._activation is not None:
+            eqs.append(Eq(self._R[result_dimensions],
+                          self._activation(self._R[result_dimensions])))
         return (eqs, [])
 
     def backprop_equations(self, prev_layer, next_layer):
