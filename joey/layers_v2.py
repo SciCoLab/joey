@@ -522,23 +522,22 @@ class InstanceNorm(Layer):
             k_dims_offsets.append(
                 list(range(0, result_shape[-self._dims + i])))
 
-        off_sets_channels = list(range(0, result_shape[1]))
 
         # indices of kernel matrix for convolution
-        k_indices = product(off_sets_channels, * k_dims_offsets)
+        k_indices = product(* k_dims_offsets)
 
         temp_func = Function(name="Ones_Filter", shape=result_shape,
                              dimensions=result_dimensions, space_order=0,
                              dtype=np.float64)
 
         # indices of input based on resullt matrix for convolution
-        r_indicies = product(off_sets_channels, *k_dims_offsets)
+        r_indicies = product(*k_dims_offsets)
         temp_func.data[:] = 1
         weight_matrix = sp.Matrix(
-            [temp_func[(result_dimensions[0], *x)] for x in k_indices])
+            [temp_func[(*result_dimensions[:2], *x)] for x in k_indices])
 
         r_indices_matrix = sp.Matrix(
-            [self._I[(result_dimensions[0], *x)] for x in r_indicies])
+            [self._I[(*result_dimensions[:2], *x)] for x in r_indicies])
         N = np.prod(result_shape[2:])
         # stencil operation corresponding to the convolution with kernel of input_shape with value to simulate sum of input_mat
         sum_input_sten = weight_matrix.dot(r_indices_matrix)
@@ -553,9 +552,9 @@ class InstanceNorm(Layer):
         
         # deviation from mean
         eqs = [Eq(self._R[result_dimensions], self._I[result_dimensions] - mean)]
-        r_indicies = product(off_sets_channels, *k_dims_offsets)
+        r_indicies = product(*k_dims_offsets)
         r_indices_matrix = sp.Matrix(
-            [self._R[(result_dimensions[0], *x)]**2 for x in r_indicies])
+            [self._R[(*result_dimensions[0:2], *x)]**2 for x in r_indicies])
 
         sum_var_stencil = r_indices_matrix.dot(weight_matrix)
 
