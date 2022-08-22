@@ -1,4 +1,5 @@
 from itertools import product
+import re
 from devito import Function, Eq, Inc, \
     ConditionalDimension, SpaceDimension
 from sympy import And
@@ -112,7 +113,7 @@ class ConvV2(Layer):
                   dim_allocator_func):
 
         no_of_kernels = kernel_size[0]
-        dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
+        self.dim_dict = dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
 
         dimensions = ['dbatch', 'dchannel']
         result_shape = []
@@ -235,56 +236,84 @@ class ConvV2(Layer):
 
         kernel_dims = layer.kernel_gradients.dimensions
         bias_dims = layer.bias_gradients.dimensions
-        dims = layer.result_gradients.dimensions
+        result_grad_dims = layer.result_gradients.dimensions
+        result_grad_shape = layer.result_gradients.shape
+
+        k_dims_offsets = []
+        for i in range(0, self._dims):
+            k_dims_offsets.append(
+                list(range(0, result_grad_shape[-self._dims + i])))
+        off_sets_channels = list(range(0, result_grad_shape[1]))
+
+        # indices of kernel matrix for convolution
+        k_indices = product(off_sets_channels, * k_dims_offsets)
+
+        r_dims_offsets = []
+
+        # generating offsets in the order depth, height, width ,
+        # hence arr[-3], arr[-2] and so on
+        def dilation(index, dilation_by):
+            if index ==0:
+                return index
+            else:
+              return  index+dilation_by
+        for i in range(0, self._dims):
+            r_dim_offsets = [kernel_dims[-self._dims + i] +dilation(x,self._stride[i]-1) for x in k_dims_offsets[i]]
+            r_dims_offsets.append(r_dim_offsets)
+
+        # indices of input based on resullt matrix for convolution
+        r_indicies = product(off_sets_channels, *r_dims_offsets)
+
+        weight_matrix = sp.Matrix(
+            [layer.result_gradients[(kernel_dims[0], *x)] for x in k_indices])
+
+        r_indices_matrix = sp.Matrix(
+            [self._I[(kernel_dims[0], *x)] for x in r_indicies])
+
+        # stencil operation corresponding to the convolution
+        sten = weight_matrix.dot(r_indices_matrix)
 
         eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[dims[0], dims[1], dims[2], dims[3]]),
-               Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1],
-                                          kernel_dims[2], kernel_dims[3]],
-                   layer.result_gradients[dims[0],
-                                          kernel_dims[0], dims[2],
-                                          dims[3]] *
-                   layer.input[dims[0], kernel_dims[1],
-                               kernel_dims[2] + dims[2],
-                               kernel_dims[3] + dims[3]])]
+                   layer.result_gradients[result_grad_dims[0], result_grad_dims[1], result_grad_dims[2], result_grad_dims[3]])]
+        eqs+=  [ Eq(layer.kernel_gradients[kernel_dims], sten)]
 
-        _, _, height, width = layer.kernel.shape
+        # _, _, height, width = layer.kernel.shape
 
-        if next_layer is not None:
-            next_dims = next_layer.result_gradients.dimensions
-            # TODO: Better names for these dimensions
-            cd1 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[2],
-                                       condition=And(next_dims[2] - height +
-                                                     1 + kernel_dims[2] >= 0,
-                                                     next_dims[2] - height +
-                                                     1 + kernel_dims[2] <
-                                                     layer.result_gradients
-                                                     .shape[2]))
-            cd2 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[3],
-                                       condition=And(next_dims[3] - width + 1 +
-                                                     kernel_dims[3] >= 0,
-                                                     next_dims[3] - width + 1 +
-                                                     kernel_dims[3] <
-                                                     layer.result_gradients
-                                                     .shape[3]))
+        # if next_layer is not None:
+        #     next_dims = next_layer.result_gradients.dimensions
+        #     # TODO: Better names for these dimensions
+        #     cd1 = ConditionalDimension(name="cd_%s" % alloc(),
+        #                                parent=kernel_dims[2],
+        #                                condition=And(next_dims[2] - height +
+        #                                              1 + kernel_dims[2] >= 0,
+        #                                              next_dims[2] - height +
+        #                                              1 + kernel_dims[2] <
+        #                                              layer.result_gradients
+        #                                              .shape[2]))
+        #     cd2 = ConditionalDimension(name="cd_%s" % alloc(),
+        #                                parent=kernel_dims[3],
+        #                                condition=And(next_dims[3] - width + 1 +
+        #                                              kernel_dims[3] >= 0,
+        #                                              next_dims[3] - width + 1 +
+        #                                              kernel_dims[3] <
+        #                                              layer.result_gradients
+        #                                              .shape[3]))
 
-            eqs += [Inc(next_layer.result_gradients[next_dims[0],
-                                                    next_dims[1],
-                                                    next_dims[2],
-                                                    next_dims[3]],
-                        layer.kernel[dims[1], next_dims[1],
-                                     height - kernel_dims[2] - 1,
-                                     width - kernel_dims[3] - 1] *
-                        layer.result_gradients[next_dims[0],
-                                               dims[1],
-                                               next_dims[2] - height + 1 +
-                                               kernel_dims[2],
-                                               next_dims[3] - width + 1 +
-                                               kernel_dims[3]],
-                        implicit_dims=(cd1, cd2))] + \
-                next_layer.activation.backprop_eqs(next_layer)
+        #     eqs += [Inc(next_layer.result_gradients[next_dims[0],
+        #                                             next_dims[1],
+        #                                             next_dims[2],
+        #                                             next_dims[3]],
+        #                 layer.kernel[dims[1], next_dims[1],
+        #                              height - kernel_dims[2] - 1,
+        #                              width - kernel_dims[3] - 1] *
+        #                 layer.result_gradients[next_dims[0],
+        #                                        dims[1],
+        #                                        next_dims[2] - height + 1 +
+        #                                        kernel_dims[2],
+        #                                        next_dims[3] - width + 1 +
+        #                                        kernel_dims[3]],
+        #                 implicit_dims=(cd1, cd2))] + \
+        #         next_layer.activation.backprop_eqs(next_layer)
 
         return (eqs, [])
 
