@@ -147,4 +147,4 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 5, 5), (1, 3, 3), 0, 3, True)
+test_joey_pytorch_conv2d((5, 1, 5, 5), (1, 3, 3), 0, 1, True)

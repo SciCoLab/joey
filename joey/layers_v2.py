@@ -265,17 +265,18 @@ class ConvV2(Layer):
         r_indicies = product(off_sets_channels, *r_dims_offsets)
 
         weight_matrix = sp.Matrix(
-            [layer.result_gradients[(kernel_dims[0], *x)] for x in k_indices])
+            [layer.result_gradients[(result_grad_dims[0], *x)] for x in k_indices])
 
         r_indices_matrix = sp.Matrix(
-            [self._I[(kernel_dims[0], *x)] for x in r_indicies])
+            [self._I[(result_grad_dims[0], *x)] for x in r_indicies])
 
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
-
         eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[result_grad_dims[0], result_grad_dims[1], result_grad_dims[2], result_grad_dims[3]])]
-        eqs+=  [ Eq(layer.kernel_gradients[kernel_dims], sten)]
+                   layer.result_gradients[result_grad_dims])]
+        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)], sten)]
+        #eqs+=  [ Inc(layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])],layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])]/result_grad_shape[0])]
+
 
         # _, _, height, width = layer.kernel.shape
 
