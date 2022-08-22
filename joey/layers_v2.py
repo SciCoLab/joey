@@ -235,6 +235,7 @@ class ConvV2(Layer):
         layer = self
 
         kernel_dims = layer.kernel_gradients.dimensions
+        kernel_shape = layer.kernel_gradients.shape
         bias_dims = layer.bias_gradients.dimensions
         result_grad_dims = layer.result_gradients.dimensions
         result_grad_shape = layer.result_gradients.shape
@@ -243,38 +244,33 @@ class ConvV2(Layer):
         for i in range(0, self._dims):
             k_dims_offsets.append(
                 list(range(0, result_grad_shape[-self._dims + i])))
-        off_sets_channels = list(range(0, result_grad_shape[1]))
 
         # indices of kernel matrix for convolution
-        k_indices = product(off_sets_channels, * k_dims_offsets)
+        k_indices = product(* k_dims_offsets)
 
         r_dims_offsets = []
 
         # generating offsets in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
-        def dilation(index, dilation_by):
-            if index ==0:
-                return index
-            else:
-              return  index+dilation_by
+      
         for i in range(0, self._dims):
-            r_dim_offsets = [kernel_dims[-self._dims + i] +dilation(x,self._stride[i]-1) for x in k_dims_offsets[i]]
+            r_dim_offsets = [kernel_dims[-self._dims + i] +x*self._stride[i] -self._padding[i] for x in k_dims_offsets[i]]
             r_dims_offsets.append(r_dim_offsets)
 
         # indices of input based on resullt matrix for convolution
-        r_indicies = product(off_sets_channels, *r_dims_offsets)
+        r_indicies = product(*r_dims_offsets)
 
         weight_matrix = sp.Matrix(
-            [layer.result_gradients[(result_grad_dims[0], *x)] for x in k_indices])
+            [layer.result_gradients[(*result_grad_dims[0:1],kernel_dims[0], *x)] for x in k_indices])
 
         r_indices_matrix = sp.Matrix(
-            [self._I[(result_grad_dims[0], *x)] for x in r_indicies])
+            [self._I[(result_grad_dims[0],kernel_dims[1], *x)] for x in r_indicies])
 
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
         eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[result_grad_dims])]
-        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)], sten)]
+                  kernel_shape[0]* layer.result_gradients[result_grad_dims])]
+        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)], kernel_shape[0]* sten)]
         #eqs+=  [ Inc(layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])],layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])]/result_grad_shape[0])]
 
 
