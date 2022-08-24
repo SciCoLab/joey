@@ -48,9 +48,10 @@ class Net:
         self._init_parameters()
 
         self._forward_operator = Operator(eqs)
-        self._backward_operator = Operator(backprop_eqs)
 
         self._forward_operator.cfunction
+        self._backward_operator = Operator(backprop_eqs)
+
         self._backward_operator.cfunction
 
     def _init_parameters(self):

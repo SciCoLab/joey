@@ -7,7 +7,11 @@ from numpy import array
 index = 0
 dim_index = 0
 
+layer_no =-1 ;
 
+def get_name(name):
+    global layer_no
+    return name+"_layer"+str(layer_no)
 def default_name_allocator():
     global index
     name = 'f' + str(index)
@@ -71,7 +75,8 @@ class Layer(ABC):
                             "its subclass")
 
         self._activation = activation
-
+        global layer_no
+        layer_no +=1
         self._K, self._I, self._R, self._bias, self._KG, self._RG, \
             self._biasG = self._allocate(kernel_size,
                                          input_size,

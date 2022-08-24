@@ -1,11 +1,14 @@
 from itertools import product
 import re
+from webbrowser import get
 from devito import Function, Eq, Inc, \
     ConditionalDimension, SpaceDimension
 from sympy import And
 import numpy as np
 import sympy as sp
 from joey import Layer
+from joey import get_name 
+
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
 
@@ -75,7 +78,7 @@ class ConvV2(Layer):
         self._padding = padding
 
         super().__init__(self._kernel_size, input_size, activation,
-                         alloc, dim_alloc,
+                         alloc, get_name,
                          generate_code)
 
     def _error_check(self, kernel_size, input_size, stride, padding,
@@ -110,7 +113,7 @@ class ConvV2(Layer):
                                 "when instantiating this object")
 
     def _allocate(self, kernel_size, input_size, name_allocator_func,
-                  dim_allocator_func):
+                  get_name):
 
         no_of_kernels = kernel_size[0]
         self.dim_dict = dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
@@ -129,47 +132,47 @@ class ConvV2(Layer):
         result_shape = (input_size[0], no_of_kernels, *result_shape)
 
         # input data function
-        input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
+        input_dimensions = [SpaceDimension(get_name("Input_"+x)) for x in dimensions]
 
-        input_func = Function(name="Input_F", shape=(input_size),
+        input_func = Function(name=get_name("Input_F"), shape=(input_size),
                               dimensions=input_dimensions, space_order=(
             self._padding[0]), dtype=np.float64)
 
         # function for kernel
-        kernel_dims = [SpaceDimension("kernel_"+x) for x in dimensions]
+        kernel_dims = [SpaceDimension(get_name("kernel_"+x)) for x in dimensions]
 
-        kernel_func = Function(name="Kernel_F", shape=(kernel_size),
+        kernel_func = Function(name=get_name("Kernel_F"), shape=(kernel_size),
                                dimensions=(kernel_dims), space_order=0,
                                dtype=np.float64)
 
         # Result for convolution
-        result_dimensions = [SpaceDimension("Result_"+x) for x in dimensions]
+        result_dimensions = [SpaceDimension(get_name("Result_"+x)) for x in dimensions]
 
-        result_func = Function(name="Result_F", shape=result_shape,
+        result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
                                dtype=np.float64)
 
-        bias_dimensions = [SpaceDimension("bias_"+x) for x in ['d']]
+        bias_dimensions = [SpaceDimension(get_name("bias_"+x)) for x in ['d']]
 
-        bias = Function(name="bias_F", shape=(
+        bias = Function(name=get_name("bias_F"), shape=(
             kernel_size[0],), dimensions=bias_dimensions, space_order=0,
             dtype=np.float64)
 
         kernel_grad_dimensions = [SpaceDimension(
-            "kernel_grad"+x) for x in dimensions]
+            get_name("kernel_grad"+x)) for x in dimensions]
 
         kernel_grad = Function(name="kgrad_%s" % name_allocator_func(), shape=(
             kernel_size), dimensions=kernel_grad_dimensions, space_order=0,
             dtype=np.float64)
 
         output_grad_dimensions = [SpaceDimension(
-            "output_grad"+x) for x in dimensions]
+            get_name("output_grad"+x)) for x in dimensions]
 
         output_grad = Function(name="outgrad_%s" % name_allocator_func(
         ), shape=result_shape, dimensions=output_grad_dimensions,
-            space_order=0, dtype=np.float64)
+            space_order=(self._kernel_size[-1]+self._padding[0]-1), dtype=np.float64)
 
-        bias_grad_dimensions = [SpaceDimension("bias_"+x) for x in ['d']]
+        bias_grad_dimensions = [SpaceDimension(get_name("bias_"+x)) for x in ['d']]
 
         bias_grad = Function(name="bgrad_%s" % name_allocator_func(), shape=(
             kernel_size[0],), dimensions=bias_grad_dimensions, space_order=0,
@@ -243,7 +246,7 @@ class ConvV2(Layer):
         k_dims_offsets = []
         for i in range(0, self._dims):
             k_dims_offsets.append(
-                list(range(0, result_grad_shape[-self._dims + i])))
+                list(range(result_grad_shape[-self._dims + i]-1,-1,-1)))
 
         # indices of kernel matrix for convolution
         k_indices = product(* k_dims_offsets)
@@ -271,11 +274,48 @@ class ConvV2(Layer):
         eqs = [Inc(layer.bias_gradients[bias_dims[0]],
                   kernel_shape[0]* layer.result_gradients[result_grad_dims])]
         eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)], kernel_shape[0]* sten)]
-        #eqs+=  [ Inc(layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])],layer.kernel_gradients[(result_grad_dims[0], *kernel_dims[1:])]/result_grad_shape[0])]
 
 
-        # _, _, height, width = layer.kernel.shape
+        if next_layer is not None:
+            next_layer_dims = next_layer.result_gradients.dimensions
 
+            k_dims_offsets = []
+            for i in range(0, self._dims):
+                k_dims_offsets.append(
+                    list(range(kernel_shape[-self._dims + i]-1,-1,-1)))
+            off_sets_channels = list(range(0, self._kernel_size[1]))
+
+            # indices of kernel matrix for convolution
+            k_indices = product(off_sets_channels, * k_dims_offsets)
+
+
+            k_dims_offsets = []
+            for i in range(0, self._dims):
+                k_dims_offsets.append(
+                    list(range(0,kernel_shape[-self._dims + i])))
+            r_dims_offsets = []
+
+            # generating offsets in the order depth, height, width ,
+            # hence arr[-3], arr[-2] and so on
+        
+            for i in range(0, self._dims):
+                r_dim_offsets = [next_layer_dims[-self._dims + i] +x*(self._stride[i]-1)  for x in k_dims_offsets[i]]
+                r_dims_offsets.append(r_dim_offsets)
+
+            # indices of input based on resullt matrix for convolution
+            r_indicies = product(off_sets_channels, *r_dims_offsets)
+
+            weight_matrix = sp.Matrix(
+                [self._K[(result_grad_dims[1], *x)] for x in k_indices])
+
+            r_indices_matrix = sp.Matrix(
+                [layer.result_gradients[(next_layer_dims[0], *x)] for x in r_indicies])
+
+            # stencil operation corresponding to the convolution
+            sten = weight_matrix.dot(r_indices_matrix)
+            
+            eqs+=  [ Eq(next_layer.result_gradients[(next_layer_dims)], sten)]
+            
         # if next_layer is not None:
         #     next_dims = next_layer.result_gradients.dimensions
         #     # TODO: Better names for these dimensions
