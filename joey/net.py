@@ -182,14 +182,6 @@ class Net:
         self._layers[-1].result_gradients.data[:] = \
             np.transpose(np.array(loss_gradient_func(self._layers[-1],
                                                      expected)))
-        result_grad_shape = self._layers[-1]._t_output_grad.shape
-        indices = [slice(0, result_grad_shape[0], 1),
-                   slice(0, result_grad_shape[1], 1)]
-        [indices.append(slice(self._layers[-1]._kernel_size[-1]-1,
-                              result_grad_shape[2+i]-self._layers[-1]._kernel_size[-1]-1, 1))
-            for i in range(self._layers[-1]._dims)]
-        self._layers[-1]._t_output_grad.data[:] =0 
-        self._layers[-1]._t_output_grad.data[tuple(indices)] = self._layers[-1].result_gradients.data
         self._backward_operator.apply(**self._backward_arg_dict)
 
         if pytorch_optimizer is not None:
