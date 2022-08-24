@@ -156,7 +156,8 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     def loss_f(pre,label):
         pre = pre.result.data
         N= np.prod(pre.shape)
-        return (2*(pre-label)/N).T
+        res = (2*(pre-label)/N).T
+        return res
     joey_net.forward(input_numpy)
     joey_net.backward(exp_res.detach().numpy(), loss_f)
     

@@ -278,28 +278,34 @@ class ConvV2(Layer):
 
         if next_layer is not None:
             next_layer_dims = next_layer.result_gradients.dimensions
+            t_output_grad_dimensions = [SpaceDimension(
+            "temp"+x.name ) for x in result_grad_dims]
+            temp_res_shape = list(result_grad_shape[0:2])
 
             k_dims_offsets = []
             for i in range(0, self._dims):
+                temp_res_shape.append(result_grad_shape[-self._dims + i]+2*self._kernel_size[-1])
                 k_dims_offsets.append(
-                    list(range(kernel_shape[-self._dims + i]-1,-1,-1)))
+                    list(range(kernel_shape[-self._dims + i]-1,-1,-(self._stride[i]))))
             off_sets_channels = list(range(0, self._kernel_size[1]))
 
+            self._t_output_grad = Function(name=get_name("temp_res"), shape=temp_res_shape, dimensions=t_output_grad_dimensions,
+            space_order=0, dtype=np.float64)
             # indices of kernel matrix for convolution
             k_indices = product(off_sets_channels, * k_dims_offsets)
 
-
+            
             k_dims_offsets = []
             for i in range(0, self._dims):
                 k_dims_offsets.append(
-                    list(range(0,kernel_shape[-self._dims + i])))
+                    list(range(0,kernel_shape[-self._dims + i],1)))
             r_dims_offsets = []
 
             # generating offsets in the order depth, height, width ,
             # hence arr[-3], arr[-2] and so on
         
             for i in range(0, self._dims):
-                r_dim_offsets = [next_layer_dims[-self._dims + i] +x*(self._stride[i]-1)  for x in k_dims_offsets[i]]
+                r_dim_offsets = [next_layer_dims[-self._dims + i] +x for x in k_dims_offsets[i]]
                 r_dims_offsets.append(r_dim_offsets)
 
             # indices of input based on resullt matrix for convolution
@@ -309,7 +315,7 @@ class ConvV2(Layer):
                 [self._K[(result_grad_dims[1], *x)] for x in k_indices])
 
             r_indices_matrix = sp.Matrix(
-                [layer.result_gradients[(next_layer_dims[0], *x)] for x in r_indicies])
+                [self._t_output_grad[(next_layer_dims[0], *x)] for x in r_indicies])
 
             # stencil operation corresponding to the convolution
             sten = weight_matrix.dot(r_indices_matrix)
