@@ -183,7 +183,6 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-
 # @pytest.mark.parametrize("input_size, kernel_size, padding, stride",
 #                          [((2, 3, 5, 5), (6, 2, 3), 5, 1),
 #                           ((1, 3, 48, 50), (6, 5, 7), 10, 3)])
