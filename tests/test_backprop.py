@@ -80,7 +80,7 @@ def generate_random_input(input_size, kernel_size) -> tuple:
         dtype=torch.double)
     input_data = \
         torch.randn(input_size[0], input_size[1],
-                    input_size[-2], input_size[-1], dtype=torch.double)
+                    input_size[-2], input_size[-1], dtype=torch.double, requires_grad=True)
     if len(input_size) == 5:
         kernel = torch.randn(kernel_size[0], input_size[1], kernel_size[-3],
                              kernel_size[-2], kernel_size[-1],
@@ -152,7 +152,6 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     exp_res = torch.randn(outputs.shape,dtype=torch.double)
     loss = criterion(outputs,exp_res )
     loss.retain_grad()
-    loss.backward()
     def loss_f(pre,label):
         pre = pre.result.data
         N= np.prod(pre.shape)
@@ -161,18 +160,23 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     joey_net.forward(input_numpy)
     joey_net.backward(exp_res.detach().numpy(), loss_f)
     
-    result_joey = joey_net._layers[0].kernel_gradients.data
+    result_joey = joey_net._layers[0].result_gradients.data
 
-    
+    from torch.autograd import grad
+
+
 
     temp = torch.from_numpy(joey_net._layers[1].result_gradients.data)
 
     result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
- 
-    result_torch = pytorch_net.conv.weight.grad.detach().numpy()
 
+    result_torch = grad(outputs=loss, inputs=input_data, retain_graph= True)[0].detach().numpy()
+    
+    loss.backward()
+
+
+    # result_torch = pytorch_net.conv.weight.grad.detach().numpy()
     # print(result_torch1)
-    print(joey_net._layers[1].result_gradients.data)
     if print_results:
         print("torch", result_torch)
 
@@ -182,6 +186,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
 
     #assert (np.allclose(result_joey, result_torch))
 
+test_joey_pytorch_conv2d((1, 1, 5, 5), (1, 3, 3), 2, 1, True)
 
 # @pytest.mark.parametrize("input_size, kernel_size, padding, stride",
 #                          [((2, 3, 5, 5), (6, 2, 3), 5, 1),
@@ -239,6 +244,5 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 9, 9), (1, 3, 3), 0, 2, True)
 
 #test_joey_pytorch_conv3d((2,3, 2, 5, 7), (3,4, 3, 3), 3, 3, True)
