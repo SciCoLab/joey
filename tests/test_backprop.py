@@ -39,7 +39,7 @@ def pytorch_conv_3d(input_data, kernel_data, padding, stride):
     input_size = input_data.size()
     kernel_size = kernel_data.size()
     global torch_conv_op, gstride, gpadding, torch_conv
-    torch_conv_op = nn.Upsample(scale_factor=kernel_size[-1], mode='nearest')
+    torch_conv_op = nn.InstanceNorm3d(scale_factor=kernel_size[-1], mode='nearest')
 
     torch_conv = torch.nn.Conv3d(input_size[1], kernel_size[0],
                                  kernel_size=kernel_size[-1],
@@ -62,7 +62,7 @@ def pytorch_conv_2d(input_data, kernel_data, padding, stride):
     input_size = input_data.size()
     kernel_size = kernel_data.size()
     global torch_conv_op, gstride, gpadding, torch_conv
-    torch_conv_op = nn.Upsample(scale_factor=kernel_size[-1], mode='nearest')
+    torch_conv_op = nn.InstanceNorm2d(scale_factor=kernel_size[-1], mode='nearest')
 
     torch_conv = torch.nn.Conv2d(input_size[1], kernel_size[0],
                                  kernel_size=kernel_size[-1],
