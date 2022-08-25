@@ -1,9 +1,5 @@
 from itertools import product
-import re
-from webbrowser import get
-from devito import Function, Eq, Inc, \
-    ConditionalDimension, SpaceDimension
-from sympy import And
+from devito import EvalDerivative, Function, Eq, Inc, SpaceDimension
 import numpy as np
 import sympy as sp
 from joey import Layer
@@ -271,9 +267,8 @@ class ConvV2(Layer):
 
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
-        eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                  kernel_shape[0]* layer.result_gradients[result_grad_dims])]
-        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)], kernel_shape[0]* sten)]
+        eqs = [Inc(layer.bias_gradients[bias_dims[0]],layer.result_gradients[result_grad_dims])]
+        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)],  sten)]
 
 
         if next_layer is not None:
@@ -529,8 +524,14 @@ class UpSample(Layer):
                                dimensions=result_dimensions, space_order=0,
                                dtype=np.float64)
 
+        output_grad_dimensions = [SpaceDimension(
+            "output_grad"+x) for x in dimensions]
+
+        output_grad = Function(name="outgrad_%s" % name_allocator_func(
+        ), shape=result_shape, dimensions=output_grad_dimensions,
+            space_order=0, dtype=np.float64)
         return (None, input_func, result_func, None, None,
-                None, None)
+                output_grad, None)
 
     def execute(self, input_data) -> np.array:
 
@@ -559,57 +560,21 @@ class UpSample(Layer):
     def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
-        kernel_dims = layer.kernel_gradients.dimensions
-        bias_dims = layer.bias_gradients.dimensions
-        dims = layer.result_gradients.dimensions
-
-        eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[dims[0], dims[1], dims[2], dims[3]]),
-               Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1],
-                                          kernel_dims[2], kernel_dims[3]],
-                   layer.result_gradients[dims[0],
-                                          kernel_dims[0], dims[2],
-                                          dims[3]] *
-                   layer.input[dims[0], kernel_dims[1],
-                               kernel_dims[2] + dims[2],
-                               kernel_dims[3] + dims[3]])]
-
-        _, _, height, width = layer.kernel.shape
-
         if next_layer is not None:
-            next_dims = next_layer.result_gradients.dimensions
-            # TODO: Better names for these dimensions
-            cd1 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[2],
-                                       condition=And(next_dims[2] - height +
-                                                     1 + kernel_dims[2] >= 0,
-                                                     next_dims[2] - height +
-                                                     1 + kernel_dims[2] <
-                                                     layer.result_gradients
-                                                     .shape[2]))
-            cd2 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[3],
-                                       condition=And(next_dims[3] - width + 1 +
-                                                     kernel_dims[3] >= 0,
-                                                     next_dims[3] - width + 1 +
-                                                     kernel_dims[3] <
-                                                     layer.result_gradients
-                                                     .shape[3]))
+            args = []
+            next_layer_result_dim = next_layer.result_gradients.dimensions
 
-            eqs += [Inc(next_layer.result_gradients[next_dims[0],
-                                                    next_dims[1],
-                                                    next_dims[2],
-                                                    next_dims[3]],
-                        layer.kernel[dims[1], next_dims[1],
-                                     height - kernel_dims[2] - 1,
-                                     width - kernel_dims[3] - 1] *
-                        layer.result_gradients[next_dims[0],
-                                               dims[1],
-                                               next_dims[2] - height + 1 +
-                                               kernel_dims[2],
-                                               next_dims[3] - width + 1 +
-                                               kernel_dims[3]],
-                        implicit_dims=(cd1, cd2))] + \
-                next_layer.activation.backprop_eqs(next_layer)
+            input_dims = [next_layer_result_dim[0], next_layer_result_dim[1]]
+            eqs = [Eq(next_layer.result_gradients, 0)]
+            for i in range(0, self._dims):
+                new_dim = SpaceDimension(
+                    name='d_kernel'+self._dim_dict.get(self._dims-i, self._dims-i))
+                input_dims.append(
+                    next_layer_result_dim[-self._dims + i]*self._scale_factor[i]+new_dim)
+                args.append((new_dim.name + '_M', self._scale_factor[i] - 1))
 
-        return (eqs, [])
+            eqs += [Inc(next_layer.result_gradients[next_layer_result_dim], layer.result_gradients[input_dims])]
+
+          
+
+        return (eqs, args)

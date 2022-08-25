@@ -50,7 +50,7 @@ class Net:
         self._forward_operator = Operator(eqs)
 
         self._forward_operator.cfunction
-        self._backward_operator = Operator(backprop_eqs)
+        self._backward_operator = Operator(backprop_eqs,opt="noop")
 
         self._backward_operator.cfunction
 
@@ -124,11 +124,11 @@ class Net:
         for layer in self._layers:
             if layer.kernel_gradients is not None:
                 eqs.append(Eq(layer.kernel_gradients,
-                              layer.kernel_gradients / batch_size))
+                              layer.kernel_gradients ))
 
             if layer.bias_gradients is not None:
                 eqs.append(Eq(layer.bias_gradients,
-                              layer.bias_gradients / batch_size))
+                              layer.bias_gradients ))
 
         return (eqs, args)
 
