@@ -58,11 +58,15 @@ def test_joey_pytorch_norm2d(input_size,print_results=False):
     input_numpy = input_data.detach().numpy()
 
     mean = np.sum(input_numpy)/25
+    print(mean)
     input_mean = input_numpy - mean
     x = input_mean*input_mean
     x = np.sum(x)/25
-    #print("hi", (x))
+    print("hi", (x))
     result_joey = layer.execute(input_numpy)
+    print(layer._mean.data)
+    print(layer._var.data)
+
     if print_results:
         print("torch", result_torch)
 
@@ -103,4 +107,4 @@ def test_joey_pytorch_norm3d(input_size, print_results=False):
     assert np.allclose(result_joey, result_torch)
 
 
-test_joey_pytorch_norm3d((1,2, 2, 15, 15), True)
+test_joey_pytorch_norm2d((1,1, 5, 5), True)

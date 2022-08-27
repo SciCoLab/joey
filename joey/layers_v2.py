@@ -4,7 +4,7 @@ from sympy import Sum, Symbol, sympify
 import numpy as np
 import sympy as sp
 from joey import Layer
-from joey import get_name 
+from joey import get_name
 
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
@@ -129,21 +129,24 @@ class ConvV2(Layer):
         result_shape = (input_size[0], no_of_kernels, *result_shape)
 
         # input data function
-        input_dimensions = [SpaceDimension(get_name("Input_"+x)) for x in dimensions]
+        input_dimensions = [SpaceDimension(
+            get_name("Input_"+x)) for x in dimensions]
 
         input_func = Function(name=get_name("Input_F"), shape=(input_size),
                               dimensions=input_dimensions, space_order=(
             self._padding[0]), dtype=np.float64)
 
         # function for kernel
-        kernel_dims = [SpaceDimension(get_name("kernel_"+x)) for x in dimensions]
+        kernel_dims = [SpaceDimension(get_name("kernel_"+x))
+                       for x in dimensions]
 
         kernel_func = Function(name=get_name("Kernel_F"), shape=(kernel_size),
                                dimensions=(kernel_dims), space_order=0,
                                dtype=np.float64)
 
         # Result for convolution
-        result_dimensions = [SpaceDimension(get_name("Result_"+x)) for x in dimensions]
+        result_dimensions = [SpaceDimension(
+            get_name("Result_"+x)) for x in dimensions]
 
         result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
@@ -169,7 +172,8 @@ class ConvV2(Layer):
         ), shape=result_shape, dimensions=output_grad_dimensions,
             space_order=(self._kernel_size[-1]+self._padding[0]-1), dtype=np.float64)
 
-        bias_grad_dimensions = [SpaceDimension(get_name("bias_"+x)) for x in ['d']]
+        bias_grad_dimensions = [SpaceDimension(
+            get_name("bias_"+x)) for x in ['d']]
 
         bias_grad = Function(name="bgrad_%s" % name_allocator_func(), shape=(
             kernel_size[0],), dimensions=bias_grad_dimensions, space_order=0,
@@ -243,7 +247,7 @@ class ConvV2(Layer):
         k_dims_offsets = []
         for i in range(0, self._dims):
             k_dims_offsets.append(
-                list(range(result_grad_shape[-self._dims + i]-1,-1,-1)))
+                list(range(result_grad_shape[-self._dims + i]-1, -1, -1)))
 
         # indices of kernel matrix for convolution
         k_indices = product(* k_dims_offsets)
@@ -252,51 +256,51 @@ class ConvV2(Layer):
 
         # generating offsets in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
-      
+
         for i in range(0, self._dims):
-            r_dim_offsets = [kernel_dims[-self._dims + i] +x*self._stride[i] -self._padding[i] for x in k_dims_offsets[i]]
+            r_dim_offsets = [kernel_dims[-self._dims + i] + x *
+                self._stride[i] - self._padding[i] for x in k_dims_offsets[i]]
             r_dims_offsets.append(r_dim_offsets)
 
         # indices of input based on resullt matrix for convolution
         r_indicies = product(*r_dims_offsets)
 
         weight_matrix = sp.Matrix(
-            [layer.result_gradients[(*result_grad_dims[0:1],kernel_dims[0], *x)] for x in k_indices])
+            [layer.result_gradients[(*result_grad_dims[0:1], kernel_dims[0], *x)] for x in k_indices])
 
         r_indices_matrix = sp.Matrix(
-            [self._I[(result_grad_dims[0],kernel_dims[1], *x)] for x in r_indicies])
+            [self._I[(result_grad_dims[0], kernel_dims[1], *x)] for x in r_indicies])
 
         # stencil operation corresponding to the convolution
         sten = weight_matrix.dot(r_indices_matrix)
-        eqs = [Inc(layer.bias_gradients[bias_dims[0]],layer.result_gradients[result_grad_dims])]
-        eqs+=  [ Inc(layer.kernel_gradients[(kernel_dims)],  sten)]
-
+        eqs = [Inc(layer.bias_gradients[bias_dims[0]],
+                   layer.result_gradients[result_grad_dims])]
+        eqs += [Inc(layer.kernel_gradients[(kernel_dims)],  sten)]
 
         if next_layer is not None:
             next_layer_dims = next_layer.result_gradients.dimensions
-            
 
             k_dims_offsets = []
             for i in range(0, self._dims):
                 k_dims_offsets.append(
-                    list(range(kernel_shape[-self._dims + i]-1,-1,-1)))
+                    list(range(kernel_shape[-self._dims + i]-1, -1, -1)))
             off_sets_channels = list(range(0, self._kernel_size[1]))
 
             # indices of kernel matrix for convolution
             k_indices = product(off_sets_channels, * k_dims_offsets)
 
-            
             k_dims_offsets = []
             for i in range(0, self._dims):
                 k_dims_offsets.append(
-                    list(range(0,kernel_shape[-self._dims + i],1)))
+                    list(range(0, kernel_shape[-self._dims + i], 1)))
             r_dims_offsets = []
 
             # generating offsets in the order depth, height, width ,
             # hence arr[-3], arr[-2] and so on
-        
+
             for i in range(0, self._dims):
-                r_dim_offsets = [next_layer_dims[-self._dims + i] +x*self._stride[i] -(self._kernel_size[-1]-1) for x in k_dims_offsets[i]]
+                r_dim_offsets = [next_layer_dims[-self._dims + i] + x*self._stride[i] - (
+                    self._kernel_size[-1]-1) for x in k_dims_offsets[i]]
                 r_dims_offsets.append(r_dim_offsets)
 
             # indices of input based on resullt matrix for convolution
@@ -310,9 +314,9 @@ class ConvV2(Layer):
 
             # stencil operation corresponding to the convolution
             sten = weight_matrix.dot(r_indices_matrix)
-            
-            eqs+=  [ Eq(next_layer.result_gradients[(next_layer_dims)], sten)]
-            
+
+            eqs += [Eq(next_layer.result_gradients[(next_layer_dims)], sten)]
+
         # if next_layer is not None:
         #     next_dims = next_layer.result_gradients.dimensions
         #     # TODO: Better names for these dimensions
@@ -524,6 +528,14 @@ class InstanceNorm(Layer):
         dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
 
         dimensions = ['dbatch', 'dchannel']
+        mean_dimensions = [SpaceDimension("Mean_"+x) for x in dimensions]
+
+        self._mean = Function(name=get_name("mean_func"), shape=(input_size[0:2]),
+                              dimensions=mean_dimensions, space_order=0, dtype=np.float64)
+        var_dimensions = [SpaceDimension("Var_"+x) for x in dimensions]
+
+        self._var = Function(name=get_name("var_func"), shape=(input_size[0:2]),
+                             dimensions=var_dimensions, space_order=0, dtype=np.float64)
         result_shape = []
         # generating  in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
@@ -537,19 +549,19 @@ class InstanceNorm(Layer):
         # input data function
         input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
 
-        input_func = Function(name="Input_F", shape=(input_size),
+        input_func = Function(name=get_name("Input_F"), shape=(input_size),
                               dimensions=input_dimensions, space_order=0, dtype=np.float64)
 
         # Result for convolution
         result_dimensions = [SpaceDimension("Result_"+x) for x in dimensions]
 
-        result_func = Function(name="Result_F", shape=result_shape,
+        result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
                                dtype=np.float64)
 
         bias_dimensions = [SpaceDimension("bias_"+x) for x in ['d']]
 
-        bias = Function(name="bias_F", shape=(
+        bias = Function(name=get_name("bias_F"), shape=(
             input_size[1],), dimensions=bias_dimensions, space_order=0,
             dtype=np.float64)
 
@@ -586,13 +598,15 @@ class InstanceNorm(Layer):
             k_dims_offsets.append(
                 list(range(0, result_shape[-self._dims + i])))
 
-
         # indices of kernel matrix for convolution
         k_indices = product(* k_dims_offsets)
 
         temp_func = Function(name="Ones_Filter", shape=result_shape,
                              dimensions=result_dimensions, space_order=0,
                              dtype=np.float64)
+        temp_func_i = Function(name=get_name("temp_inp"), shape=result_shape,
+                               dimensions=result_dimensions, space_order=0,
+                               dtype=np.float64)
 
         # indices of input based on resullt matrix for convolution
         r_indicies = product(*k_dims_offsets)
@@ -607,27 +621,31 @@ class InstanceNorm(Layer):
         sum_input_sten = weight_matrix.dot(r_indices_matrix)
 
         mean = (sum_input_sten/N)
+
         '''
         .. math::
 
-        y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} 
+        y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}}
 
         '''
-        
+
         # deviation from mean
-        eqs = [Eq(self._R[result_dimensions], self._I[result_dimensions] - mean)]
+        eqs = [Eq(self._mean[result_dimensions[0:2]], mean)]
+        eqs += [Eq(self._R[result_dimensions],
+                   self._I[result_dimensions] - mean)]
         r_indicies = product(*k_dims_offsets)
         r_indices_matrix = sp.Matrix(
             [self._R[(*result_dimensions[0:2], *x)]**2 for x in r_indicies])
 
         sum_var_stencil = r_indices_matrix.dot(weight_matrix)
+        eqs += [Eq(self._var[result_dimensions], sum_var_stencil/N)]
 
-        eqs += [Eq(self._I[result_dimensions], sum_var_stencil/N)]
+        eqs += [Eq(temp_func_i[result_dimensions], sum_var_stencil/N)]
         epsilon = 0.00001
         eqs += [Eq(self._R[result_dimensions], self._R[result_dimensions] /
-                   sp.sqrt(self._I[result_dimensions]+epsilon))]
+                   sp.sqrt(temp_func_i[result_dimensions]+epsilon))]
 
-        eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
+        #eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
 
         if self._activation is not None:
             eqs.append(Eq(self._R[result_dimensions],
@@ -637,58 +655,48 @@ class InstanceNorm(Layer):
     def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
-        kernel_dims = layer.kernel_gradients.dimensions
         bias_dims = layer.bias_gradients.dimensions
         dims = layer.result_gradients.dimensions
-
-        eqs = [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[dims[0], dims[1], dims[2], dims[3]]),
-               Inc(layer.kernel_gradients[kernel_dims[0], kernel_dims[1],
-                                          kernel_dims[2], kernel_dims[3]],
-                   layer.result_gradients[dims[0],
-                                          kernel_dims[0], dims[2],
-                                          dims[3]] *
-                   layer.input[dims[0], kernel_dims[1],
-                               kernel_dims[2] + dims[2],
-                               kernel_dims[3] + dims[3]])]
-
-        _, _, height, width = layer.kernel.shape
+        result_shape = layer.result_gradients.shape
+        N = np.prod(result_shape[2:])
 
         if next_layer is not None:
             next_dims = next_layer.result_gradients.dimensions
             # TODO: Better names for these dimensions
-            cd1 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[2],
-                                       condition=And(next_dims[2] - height +
-                                                     1 + kernel_dims[2] >= 0,
-                                                     next_dims[2] - height +
-                                                     1 + kernel_dims[2] <
-                                                     layer.result_gradients
-                                                     .shape[2]))
-            cd2 = ConditionalDimension(name="cd_%s" % alloc(),
-                                       parent=kernel_dims[3],
-                                       condition=And(next_dims[3] - width + 1 +
-                                                     kernel_dims[3] >= 0,
-                                                     next_dims[3] - width + 1 +
-                                                     kernel_dims[3] <
-                                                     layer.result_gradients
-                                                     .shape[3]))
 
-            eqs += [Inc(next_layer.result_gradients[next_dims[0],
-                                                    next_dims[1],
-                                                    next_dims[2],
-                                                    next_dims[3]],
-                        layer.kernel[dims[1], next_dims[1],
-                                     height - kernel_dims[2] - 1,
-                                     width - kernel_dims[3] - 1] *
-                        layer.result_gradients[next_dims[0],
-                                               dims[1],
-                                               next_dims[2] - height + 1 +
-                                               kernel_dims[2],
-                                               next_dims[3] - width + 1 +
-                                               kernel_dims[3]],
-                        implicit_dims=(cd1, cd2))] + \
-                next_layer.activation.backprop_eqs(next_layer)
+            k_dims_offsets = []
+            for i in range(0, self._dims):
+                k_dims_offsets.append(
+                        list(range(0, result_shape[-self._dims + i])))
+
+                # indices of kernel matrix for convolution
+            k_indices = product(* k_dims_offsets)
+
+            temp_func = Function(name="Ones_Filter", shape=result_shape,
+                                     dimensions=dims, space_order=0,
+                                     dtype=np.float64)
+            temp_func_i = Function(name=get_name("temp_inp"), shape=result_shape,
+                                       dimensions=dims, space_order=0,
+                                       dtype=np.float64)
+
+                # indices of input based on resullt matrix for convolution
+            r_indicies = product(*k_dims_offsets)
+            temp_func.data[:] = 1
+            weight_matrix = sp.Matrix(
+                    [temp_func[(*dims[:2], *x)] for x in k_indices])
+
+            r_indices_matrix = sp.Matrix(
+                    [self._I[(*dims[:2], *x)] for x in r_indicies])
+            N = np.prod(result_shape[2:])
+                # stencil operation corresponding to the convolution with kernel of input_shape with value to simulate sum of input_mat
+            sum_input_sten = weight_matrix.dot(r_indices_matrix)
+
+            mean = (sum_input_sten/N)
+            eqs = [Eq(next_layer.result_gradients[next_dims], (1-1/N) /
+                       sp.sqrt(layer.result_gradients[dims]+0.00001))]
+            eqs += [Eq(next_layer.result_gradients[next_dims], next_layer.result_gradients[next_dims] -
+                    ((layer.resresult_gradients - (self._mean[dims[0:2]])**2)/(N*(sp.sqrt((self._var[dims[0:2]])**3)))))]
+            # eqs = [Eq(next_layer.result_gradients[next_dims],layer.result_gradients[next_dims])]
 
         return (eqs, [])
 
@@ -913,8 +921,8 @@ class UpSample(Layer):
                     next_layer_result_dim[-self._dims + i]*self._scale_factor[i]+new_dim)
                 args.append((new_dim.name + '_M', self._scale_factor[i] - 1))
 
-            eqs += [Inc(next_layer.result_gradients[next_layer_result_dim], layer.result_gradients[input_dims])]
+            eqs += [Inc(next_layer.result_gradients[next_layer_result_dim],
+                        layer.result_gradients[input_dims])]
 
-          
 
         return (eqs, args)
