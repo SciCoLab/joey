@@ -695,7 +695,7 @@ class InstanceNorm(Layer):
             eqs = [Eq(next_layer.result_gradients[next_dims], (1-1/N) /
                        sp.sqrt(layer.result_gradients[dims]+0.00001))]
             eqs += [Eq(next_layer.result_gradients[next_dims], next_layer.result_gradients[next_dims] -
-                    ((layer.resresult_gradients - (self._mean[dims[0:2]])**2)/(N*(sp.sqrt((self._var[dims[0:2]])**3)))))]
+                    ((next_layer.result_gradients - (self._mean[dims[0:2]])**2)/(N*(sp.sqrt((self._var[dims[0:2]])**3)))))]
             # eqs = [Eq(next_layer.result_gradients[next_dims],layer.result_gradients[next_dims])]
 
         return (eqs, [])
