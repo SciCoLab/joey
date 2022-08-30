@@ -155,7 +155,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
         N = np.prod(pre.shape)
         res = (2*(pre-label)/N).T
         return res
-    out = joey_net.forward(input_numpy)
+    grad = joey_net.forward(input_numpy)
     joey_net.backward(exp_res.detach().numpy(), loss_f)
 
     result_joey = joey_net._layers[0].kernel_gradients.data
@@ -171,21 +171,19 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     N = np.prod(input_numpy.shape[2:])
     mean = np.sum(input_numpy)/N
     input_mean = input_numpy - mean
-    x = input_mean*input_mean
-    x = np.sum(x)/N
-    x= x+0.00001
-    z = 1/(np.sqrt(x))
-    
-    print(x)
-    out = joey_net._layers[1].result_gradients.data
-    print(out)
+    var = np.sum(input_mean*input_mean)/N
+    var= var+0.00001
+    var_sqrt = np.sqrt(var)
+    grad_j = joey_net._layers[1].result_gradients.data
+    y = var_sqrt*(((1-1/N)*var_sqrt) - (((grad_j-mean)*(grad_j-mean))/(var_sqrt*N*N)))
+
+    print(grad_j)
     global c, c1
     result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
                         retain_graph=True)[0].detach().numpy()
     out_grad = grad(outputs=loss, inputs=outputs, allow_unused=True,
                         retain_graph=True)[0].detach().numpy()
 
-    y = z*(((1-1/N)*1/z) - (((out-mean)*(out-mean))/(z*N)))
 
     print("yyy",y)        
 
