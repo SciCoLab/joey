@@ -155,7 +155,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
         N = np.prod(pre.shape)
         res = (2*(pre-label)/N).T
         return res
-    grad = joey_net.forward(input_numpy)
+    out = joey_net.forward(input_numpy)
     joey_net.backward(exp_res.detach().numpy(), loss_f)
 
     result_joey = joey_net._layers[0].kernel_gradients.data
@@ -167,27 +167,39 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
 
     # result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
     # input shape (1,1,7,7)
+    result_grad_joey = joey_net._layers[1].result_gradients.data
+
     input_numpy = joey_net._layers[1]._I.data
     N = np.prod(input_numpy.shape)
     mean = np.sum(input_numpy)/N
     input_mean = input_numpy - mean
     var = np.sum(input_mean*input_mean)/N
     var= var+0.00001
+    print((1-(1/N)))
     var_sqrt = np.sqrt(var)
-    result_grad_joey = joey_net._layers[1].result_gradients.data
-    y = (1/var)*((1-1/N)*var_sqrt) - ((((result_grad_joey-mean)*(result_grad_joey-mean))/(var_sqrt*N)))
+    eq1 = (1-1/N)*var_sqrt
+    eq2 = ((input_numpy - mean)*(input_numpy - mean))/(var_sqrt*N)
+    print(eq1,eq2)
+    y = (1/var)*(eq1- eq2)
 
-    print(result_grad_joey)
     global c, c1
-    result_torch = grad(outputs=loss, inputs=c1, allow_unused=True,
-                        retain_graph=True)[0].detach().numpy()
-    out_grad = grad(outputs=loss, inputs=outputs, allow_unused=True,
-                        retain_graph=True)[0].detach().numpy()
+    result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
+                        retain_graph=True)
+   
+
+    print("yyy",y)        
+
+    print(result_torch)
+    y = result_torch.detach().numpy()
+    result_torch = grad(outputs=loss, inputs=outputs, allow_unused=True,
+                        retain_graph=True)
+   
 
 
     print("yyy",y)        
 
     print(result_torch)
+
 
     loss.backward()
 
