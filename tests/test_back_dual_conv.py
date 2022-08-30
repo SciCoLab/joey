@@ -118,7 +118,8 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
                           strict_stride_check=False)
 
     x = layer._R.shape
-    layer2 = joey.Conv2DV2(kernel_size, input_size=(x),
+    kernel_shape = (x[1],*kernel_size[1:])
+    layer2 = joey.Conv2DV2(kernel_shape, input_size=(x),
                           padding=(padding, padding), stride=(
                               stride, stride), generate_code=True,
                           strict_stride_check=False)
@@ -129,10 +130,15 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     joey_net = joey.Net(layers)
     joey_net._layers[0].kernel.data[:] = kernel_numpy
     joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
-    joey_net._layers[1].kernel.data[:] = kernel_numpy
-    joey_net._layers[1].bias.data[:] = np.array([0]*kernel_size[0])
+
+    input_data2, kernel2 = generate_random_input(x, kernel_shape)
+    kernel_numpy2 = kernel2.detach().numpy()
+    joey_net._layers[1].kernel.data[:] = kernel_numpy2
+    joey_net._layers[1].bias.data[:] = np.array([0]*kernel_shape[0])
     criterion = nn.MSELoss()
-    
+    pytorch_net.conv1.weight = torch.nn.Parameter(kernel2)
+    pytorch_net.conv1.bias = torch.nn.Parameter(
+            torch.Tensor([0]*kernel_shape[0]))
     pytorch_net.zero_grad()
     outputs = pytorch_net(input_data.double())
     exp_res = torch.randn(outputs.shape, dtype=torch.double)
@@ -173,7 +179,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 7, 7), (1, 3, 3), 5, 1, True)
+test_joey_pytorch_conv2d((1, 1, 7, 7), (1, 3, 3), 0, 2, True)
 
 
 # def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
