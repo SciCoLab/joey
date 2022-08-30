@@ -299,15 +299,14 @@ class ConvV2(Layer):
             # hence arr[-3], arr[-2] and so on
 
             for i in range(0, self._dims):
-                r_dim_offsets = [next_layer_dims[-self._dims + i] + x*self._stride[i] - (
-                    self._kernel_size[-1]-1) for x in k_dims_offsets[i]]
+                r_dim_offsets = [next_layer_dims[-self._dims + i] + (x*self._stride[i]) - (self._kernel_size[-1]-self._padding[0]-1) for x in k_dims_offsets[i]]
                 r_dims_offsets.append(r_dim_offsets)
 
             # indices of input based on resullt matrix for convolution
             r_indicies = product(off_sets_channels, *r_dims_offsets)
 
             weight_matrix = sp.Matrix(
-                [self._K[(result_grad_dims[1], *x)] for x in k_indices])
+                [self._K[(next_layer_dims[1], *x)] for x in k_indices])
 
             r_indices_matrix = sp.Matrix(
                 [layer.result_gradients[(next_layer_dims[0], *x)] for x in r_indicies])

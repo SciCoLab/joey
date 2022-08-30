@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.autograd import grad
-
+np.set_printoptions(linewidth=1000)
 configuration['language'] = 'openmp'
 # configuration['LOGGING'] = 'debug'
 torch_conv_op = []
@@ -16,7 +16,6 @@ gstride = 1
 gpadding = 0
 c = c1 = []
 torch.manual_seed(0)
-
 
 class pyTorchModel(nn.Module):
     def __init__(self):
@@ -102,20 +101,6 @@ def generate_random_input(input_size, kernel_size) -> tuple:
     return input_data, kernel
 
 
-def conv(input, kernel, padding, stride):
-    pass
-    # ar_input = torch.zeros((1,1,1,1), dtype=torch.double)
-    # ar_input[0][0][0][0] = input[0][0][0][0]
-
-    # input  = ar_input
-    # torch_conv_op = torch.nn.Conv2d(input.shape[1], kernel.shape[0],
-    #                                 kernel_size=kernel.shape[-1],
-    #                                 padding=padding, stride=1, dtype=torch.double)
-
-    # with torch.no_grad():
-    #    kernel_size[-1]
-
-
 def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
                              print_results=False):
     ''' test function for 3d conv operation'''
@@ -132,9 +117,8 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
                               stride, stride), generate_code=True,
                           strict_stride_check=False)
 
-    x = (input_size[-1]+(2*padding)-kernel_size[-1])//stride + 1
-
-    layer2 = joey.Conv2DV2(kernel_size, input_size=(layer._R.shape),
+    x = layer._R.shape
+    layer2 = joey.Conv2DV2(kernel_size, input_size=(x),
                           padding=(padding, padding), stride=(
                               stride, stride), generate_code=True,
                           strict_stride_check=False)
@@ -163,19 +147,14 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     out = joey_net.forward(input_numpy)
     joey_net.backward(exp_res.detach().numpy(), loss_f)
 
-    # print(joey_net._layers[1].result_gradients.data)
-
     from torch.autograd import grad
 
-    # temp = torch.from_numpy(joey_net._layers[0].result_gradients.data)
-
-    # result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
-    # input shape (1,1,7,7)
+    
     result_joey = joey_net._layers[0].result_gradients.data
 
     global c, c1
     result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
-                        retain_graph=True)[0]
+                        retain_graph=True)[0].detach().numpy()
    
 
 
@@ -194,7 +173,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 7, 7), (1, 3, 3), 0, 2, True)
+test_joey_pytorch_conv2d((1, 1, 7, 7), (1, 3, 3), 5, 1, True)
 
 
 # def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
