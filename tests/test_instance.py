@@ -167,7 +167,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
 
     # result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
     
-    input_numpy = joey_net._layers[1].result_gradients.data
+    input_numpy = joey_net._layers[1]._I.data
     N = np.prod(input_numpy.shape[2:])
     mean = np.sum(input_numpy)/N
     input_mean = input_numpy - mean
@@ -177,13 +177,15 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     z = 1/(np.sqrt(x))
     
     print(x)
+    out = joey_net._layers[1].result_gradients.data
+    print(out)
     global c, c1
-    result_torch = grad(outputs=loss, inputs=c1, allow_unused=True,
+    result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
                         retain_graph=True)[0].detach().numpy()
     out_grad = grad(outputs=loss, inputs=outputs, allow_unused=True,
                         retain_graph=True)[0].detach().numpy()
 
-    y = ((1-1/N)*z) - (((out-mean)**2 /((x**1.5))/N))
+    y = z*(((1-1/N)*1/z) - (((out-mean)*(out-mean))/(z*N)))
 
     print("yyy",y)        
 
