@@ -175,11 +175,9 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     input_mean = input_numpy - mean
     var = np.sum(input_mean*input_mean)/N
     var= var+0.00001
-    print((1-(1/N)))
     var_sqrt = np.sqrt(var)
     eq1 = (1-1/N)*var_sqrt
-    eq2 = ((input_numpy - mean)*(input_numpy - mean))/(var_sqrt*N)
-    print(eq1,eq2)
+    eq2 = ((result_grad_joey - mean)*(result_grad_joey - mean))/(var_sqrt*N)
     y = (1/var)*(eq1- eq2)
 
     global c, c1
@@ -190,15 +188,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     print("yyy",y)        
 
     print(result_torch)
-    y = result_torch.detach().numpy()
-    result_torch = grad(outputs=loss, inputs=outputs, allow_unused=True,
-                        retain_graph=True)
    
-
-
-    print("yyy",y)        
-
-    print(result_torch)
 
 
     loss.backward()
