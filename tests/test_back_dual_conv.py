@@ -115,14 +115,14 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     layer = joey.Conv2DV2(kernel_size, input_size=(input_size),
                           padding=(padding, padding), stride=(
                               stride, stride), generate_code=True,
-                          strict_stride_check=False)
+                          strict_stride_check=True)
 
     x = layer._R.shape
     kernel_shape = (x[1],*kernel_size[1:])
     layer2 = joey.Conv2DV2(kernel_shape, input_size=(x),
                           padding=(padding, padding), stride=(
                               stride, stride), generate_code=True,
-                          strict_stride_check=False)
+                          strict_stride_check=True)
 
     input_numpy = input_data.detach().numpy()
     kernel_numpy = kernel.detach().numpy()

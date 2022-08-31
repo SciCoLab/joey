@@ -287,7 +287,7 @@ class ConvV2(Layer):
             off_sets_channels = list(range(0, self._kernel_size[1]))
 
             # indices of kernel matrix for convolution
-            k_indices = product(off_sets_channels, * k_dims_offsets)
+            k_indices = product(* k_dims_offsets)
 
             k_dims_offsets = []
             for i in range(0, self._dims):
@@ -303,18 +303,18 @@ class ConvV2(Layer):
                 r_dims_offsets.append(r_dim_offsets)
 
             # indices of input based on resullt matrix for convolution
-            r_indicies = product(off_sets_channels, *r_dims_offsets)
+            r_indicies = product(*r_dims_offsets)
 
             weight_matrix = sp.Matrix(
-                [self._K[(next_layer_dims[1], *x)] for x in k_indices])
+                [self._K[(kernel_dims[0],kernel_dims[1], *x)] for x in k_indices])
 
             r_indices_matrix = sp.Matrix(
-                [layer.result_gradients[(next_layer_dims[0], *x)] for x in r_indicies])
+                [layer.result_gradients[(next_layer_dims[0],kernel_dims[0], *x)] for x in r_indicies])
 
             # stencil operation corresponding to the convolution
             sten = weight_matrix.dot(r_indices_matrix)
 
-            eqs += [Eq(next_layer.result_gradients[(next_layer_dims)], sten)]
+            eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0],kernel_dims[1],*next_layer_dims[2:])], sten,implicit_dims=(kernel_dims[0],next_layer_dims[2]))]
 
         # if next_layer is not None:
         #     next_dims = next_layer.result_gradients.dimensions
