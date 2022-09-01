@@ -666,7 +666,10 @@ class MaxPoolingV2(Pooling):
             args.append((new_dim.name + '_M', self._kernel_size[i] - 1))
         ci = ConditionalDimension(name='ci', parent=new_dims[-1],
                           condition=And(self._I[input_dims]>self._R[result_dimensions]))
-        eqs = [Eq(self._indices[result_dimensions], ((input_dims[-2])*self._I.shape[-2])+(input_dims[-1]) ,implicit_dims=(new_dims[-2],ci))]
+        index = 1
+        for i in range (0,self._dims-1):
+            index =  index* self._I.shape[-self._dims+i] *input_dims[-self._dims+i]
+        eqs = [Eq(self._indices[result_dimensions], index+(input_dims[-1]) ,implicit_dims=(new_dims[-2],ci))]
 
         eqs += [Eq(self._R[result_dimensions], Max(
             self._R[result_dimensions], self._I[input_dims], evaluate=False))]
@@ -686,9 +689,10 @@ class MaxPoolingV2(Pooling):
         for i in range (0,self._dims):
             indices_const.append(Constant(name=get_name("pool_backprop_c_"+str(i)), dtype=np.int32))
         input_shape = self._I.shape
-        eqs = [Eq(indices_const[0] ,(z//input_shape[-self._dims])-self._padding[-self._dims])]
+        eqs = []
         for i in range (0,self._dims-1):
-            eqs += [Eq(indices_const[1+i], (z%input_shape[-self._dims+i+1])-self._padding[-self._dims+i+1])]
+            eqs += [Eq(indices_const[i], (z%input_shape[-self._dims+i])-self._padding[-self._dims+i])]
+        eqs.append(Eq(indices_const[-1] ,(z//input_shape[-1])-self._padding[-1]))
         eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],*indices_const)], self.result_gradients[res_dims])]
         return (eqs,[])
 

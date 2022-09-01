@@ -131,7 +131,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     
     layers=[layer0,layer]
     joey_net = joey.Net(layers)
-    joey_net._layers[0].kernel.data[:] = kernel_numpy
+    joey_net._layers[0].kernel.data[:] = np.ones((input_size[1],input_size[1], 1,1), dtype=np.double)
     joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
     criterion = nn.MSELoss()
 
@@ -182,7 +182,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 7, 7), (1,5, 5), 2, 3, True)
+test_joey_pytorch_conv2d((1, 1, 7, 7), (1,5, 5), 2, 2, True)
 
 @pytest.mark.parametrize("input_size, kernel_size, padding, stride",
                          [((2, 3, 5, 5), (6, 2, 3), 5, 1),
