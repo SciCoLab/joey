@@ -426,6 +426,322 @@ class Conv2DV2(ConvV2):
                          strict_stride_check)
 
 
+
+
+class Pooling(Layer):
+    """
+    A Layer abstract subclass corresponding to a generic pooling layer.
+    When you create a subclass of Pooling, you have to implement
+    the following methods: equations(), backprop_equations().
+
+    Parameters
+    ----------
+    kernel_size : (int, int)
+        The shape of a kernel (represented internally by a NumPy array)
+        expressed as (rows, columns).
+    input_size : (int, int, int, int)
+        The shape of input data expressed as
+        (batch size, channels, rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    stride : (int, int), optional
+        Stride of the layer expressed as (rows, columns). The default
+        value is (1, 1).
+    padding : (int, int), optional
+        Padding of the layer expressed as (rows, columns). The default
+        value is (0, 0).
+
+        Be careful! The current version of Joey supports non-zero padding
+        ONLY for standalone layers. When you create a neural network, all
+        of its layers must have (0, 0) padding.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    strict_stride_check : bool, optional
+        A boolean indicating whether a strict stride check should be
+        performed when instantiating this object. The default value is
+        True.
+
+        If the check is disabled and the stride turns out to be
+        incompatible with the provided kernel, input and padding sizes,
+        some parts of input data will not be processed. This behaviour
+        is intentional, its aim is avoiding any out-of-bounds accesses.
+    """
+
+    def __init__(self, kernel_size, input_size,  dimensions,
+                 name_allocator_func=alloc, dim_allocator_func=dim_alloc,
+                 stride=(1, 1), padding=(0, 0), activation=None,
+                 generate_code=False, strict_stride_check=True):
+        # Kernel size is expressed as (rows, columns).
+        # Input size is expressed as (batch size, channels, rows, columns).
+        self._dims = dimensions
+        self._dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
+
+        if (type(padding) is int):
+            padding = tuple([padding] * self._dims)
+        if (type(stride) is int):
+            stride = tuple([stride] * self._dims)
+        self._error_check(kernel_size, input_size, stride, padding,
+                          strict_stride_check)
+
+        self._kernel_size = kernel_size
+        self._stride = stride
+        self._padding = padding
+
+        super().__init__(self._kernel_size, input_size, activation,
+                         alloc, dim_alloc,
+                         generate_code)
+
+    def _set_padding_result_values(self, input_func, result_func, value=0):
+        devito_func_dims = input_func.dimensions[2:]
+        eqs = []
+        for i, dim in enumerate(devito_func_dims):
+            dim_l = SubDimension.left(name='sub%s_l' % dim.name, parent=dim,
+                                      thickness=self._padding[i])
+            eqs.append(Inc(input_func.subs({dim: dim_l}), value))
+            dim_r = SubDimension.right(name='sub%s_r' % dim.name, parent=dim,
+                                       thickness=self._padding[i])
+            eqs.append(Inc(input_func.subs({dim: dim_r}), value))
+        eqs.append(Eq(result_func, value))
+        op = Operator(eqs)
+        op.apply()
+        return
+
+    def _error_check(self, kernel_size, input_size, stride, padding,
+                     strict_stride_check):
+        if input_size is None or (len(input_size) != self._dims+2):
+            raise Exception("Input size is incorrect")
+
+        if kernel_size is None or (len(kernel_size) != self._dims):
+            raise Exception("Kernel size is incorrect")
+
+        if stride is None or (len(stride) != self._dims):
+            raise Exception("Stride is incorrect")
+
+        if padding is None or (len(padding) != self._dims):
+            raise Exception("Padding is incorrect")
+
+        for i in range(0, self._dims):
+
+            if stride[i] < 1:
+                raise Exception("Stride cannot be less than 1")
+
+            if padding[i] < 0:
+                raise Exception("Padding cannot be negative")
+
+        if strict_stride_check:
+            input_d = input_size[-self._dims+i] + 2 * padding[i]
+            if (input_d - kernel_size[-self._dims+i]) % stride[i] != 0:
+                raise Exception("Stride " + str(stride) + " is not "
+                                "compatible with feature map, kernel and "
+                                "padding sizes. If you want to proceed "
+                                "anyway, set strict_stride_check=False "
+                                "when instantiating this object")
+
+    def _allocate(self, kernel_size, input_size, name_allocator_func,
+                  dim_allocator_func):
+
+        dimensions = ['dbatch', 'dchannel']
+        result_shape = []
+        input_size = list(input_size)
+        # generating  in the order depth, height, width ,
+        # hence arr[-3], arr[-2] and so on
+        for i in range(0, self._dims):
+            result_d = (input_size[(-self._dims+i)] -
+                        kernel_size[(-self._dims+i)] +
+                        2 * self._padding[i])//self._stride[i] + 1
+            result_shape.append(result_d)
+            input_size[(-self._dims+i)] += 2 * self._padding[i]
+            dimensions.append(
+                'd_'+self._dim_dict.get(self._dims-i, self._dims-i))
+
+        result_shape = (*input_size[0:2], *result_shape)
+        # input data function
+        input_dimensions = [SpaceDimension("Input_"+x) for x in dimensions]
+
+        input_func = Function(name="Input_F", shape=(input_size),
+                              dimensions=input_dimensions,
+                              space_order=0, dtype=np.float64)
+        ind_dimensions = [SpaceDimension(get_name("Indices_"+x)) for x in dimensions]
+
+        self._indices = Function(name='indices_maxpool', space_order=0, shape=(result_shape), dimensions=ind_dimensions,dtype=np.int16)
+
+        # Result for pool layer
+        result_dimensions = [SpaceDimension("Result_"+x) for x in dimensions]
+
+        result_func = Function(name="Result_F", shape=result_shape,
+                               dimensions=result_dimensions, space_order=0,
+                               dtype=np.float64)
+
+        output_grad_dimensions = [SpaceDimension(
+            "output_grad"+x) for x in dimensions]
+
+        output_grad = Function(name="outgrad_%s" % name_allocator_func(
+        ), shape=result_shape, dimensions=output_grad_dimensions,
+            space_order=0, dtype=np.float64)
+
+        self._set_padding_result_values(
+            input_func, result_func, value=-1000000000)
+
+        return (None, input_func, result_func, None, None, output_grad, None)
+
+    @property
+    def stride(self):
+        """Stride of the layer."""
+        return self._stride
+
+    @property
+    def kernel_size(self):
+        """The kernel size of the layer."""
+        return self._kernel_size
+
+    def execute(self, input_data):
+        '''execute implementation'''
+        dims = list(self._I.dimensions)
+        extra_dims = []
+        for i in range(0,self._dims):
+            dims[2+i] = dims[2+i]+self._padding[i]
+            extra_dims.append(SpaceDimension(name= get_name("temp_space_dims_"+str(i))))
+        temp = Function(name="temp", space_order=0, shape = input_data.shape , dimensions =((*dims[0:2],*extra_dims)),dtype=np.float64)
+        for i in range(0,self._dims):
+            extra_dims[i] = extra_dims[i]+self._padding[i]
+        temp.data[:] = input_data
+        eq = Eq(self._I[(*dims[0:2],*extra_dims)], temp)
+        op = Operator(eq)
+        op.apply()
+        # indices = [slice(0, self._I.shape[0], 1),
+        #            slice(0, self._I.shape[1], 1)]
+        # [indices.append(slice(self._padding[i],
+        #                       self._I.data.shape[2+i]-self._padding[i], 1))
+        #     for i in range(self._dims)]
+
+        # self._I.data[tuple(indices)] = input_data
+
+        return super().execute()
+
+    @abstractmethod
+    def equations(self):
+        pass
+
+    @abstractmethod
+    def backprop_equations(self, prev_layer, next_layer):
+        pass
+
+
+class MaxPoolingV2(Pooling):
+    """
+    A Layer/Pooling subclass corresponding to a max pooling layer
+
+    Parameters
+    ----------
+    See Pooling.__doc__.
+    """
+
+    def __init__(self, kernel_size, input_size, dims,
+                 stride, padding, activation, generate_code,
+                 strict_stride_check):
+        self._indices = None
+        self._forward_tmp_constants = None
+        self._backward_tmp_constants = None
+        super().__init__(kernel_size, input_size, dims, alloc, dim_alloc,
+                         stride, padding, activation, generate_code,
+                         strict_stride_check)
+
+    def equations(self):
+        result_dimensions = self._R.dimensions
+
+        input_dims = [result_dimensions[0], result_dimensions[1]]
+        args = []
+        new_dims= []
+        for i in range(0, self._dims):
+            new_dim = SpaceDimension(
+                name='d_kernel'+self._dim_dict.get(self._dims-i, self._dims-i))
+            new_dims.append(new_dim)
+            input_dims.append(
+                result_dimensions[-self._dims + i]*self._stride[i]+new_dim)
+            args.append((new_dim.name + '_M', self._kernel_size[i] - 1))
+        ci = ConditionalDimension(name='ci', parent=new_dims[-1],
+                          condition=And(self._I[input_dims]>self._R[result_dimensions]))
+        eqs = [Eq(self._indices[result_dimensions], ((input_dims[-2])*self._I.shape[-2])+(input_dims[-1]) ,implicit_dims=(new_dims[-2],ci))]
+
+        eqs += [Eq(self._R[result_dimensions], Max(
+            self._R[result_dimensions], self._I[input_dims], evaluate=False))]
+
+        # eqs += [Eq(self._indices[input_dims], 0, implicit_dims=(ci,))]
+
+
+        return (eqs, args)
+
+    def backprop_equations(self, prev_layer, next_layer):
+        if next_layer is None:
+            return ([], [])
+        res_dims = self.result_gradients.dimensions
+        next_layer_dims = next_layer.result_gradients.dimensions
+        z = self._indices[res_dims]
+        a =  Constant(name="bk_tmp_c_%s" % alloc(), dtype=np.int32)
+        b =  Constant(name="bk_tmp_c_%s" % alloc(), dtype=np.int32)
+        input_shape = self._I.shape
+        eqs = [Eq(a ,(z//input_shape[-2])-self._padding[-2])]
+        eqs += [Eq(b, (z%input_shape[-1])-self._padding[-1])]
+        eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],a,b)], self.result_gradients[res_dims])]
+        return (eqs,[])
+
+
+class MaxPooling2D(MaxPoolingV2):
+
+    """
+    A Layer subclass corresponding to a 2D Max pool layer,
+    which calls the generic pooling class.
+    Parameters
+    ----------
+    kernel_size : (int, int)
+        The shape of a kernel (represented internally by a NumPy array)
+        expressed as (rows, columns).
+    input_size : (int, int, int, int)
+        The shape of input data expressed as
+        (batch size, channels, rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    stride : (int, int), optional
+        Stride of the layer expressed as (rows, columns). The default
+        value is (1, 1).
+    padding : (int, int), optional
+        Padding of the layer expressed as (rows, columns). The default
+        value is (0, 0).
+
+        Be careful! The current version of Joey supports non-zero padding
+        ONLY for standalone layers. When you create a neural network, all
+        of its layers must have (0, 0) padding.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    strict_stride_check : bool, optional
+        A boolean indicating whether a strict stride check should be
+        performed when instantiating this object. The default value is
+        True.
+
+        If the check is disabled and the stride turns out to be
+        incompatible with the provided kernel, input and padding sizes,
+        some parts of input data will not be processed. This behaviour
+        is intentional, its aim is avoiding any out-of-bounds accesses.
+    """
+
+    def __init__(self, kernel_size, input_size,
+                 stride=(1, 1), padding=(0, 0),
+                 activation=None, generate_code=False,
+                 strict_stride_check=True):
+        dimensions = 2
+        super().__init__(kernel_size, input_size, dimensions,
+                         stride, padding, activation, generate_code,
+                         strict_stride_check)
+
+
 class InstanceNorm(Layer):
     """
     A Layer subclass corresponding to convolution layer (mathematically,
