@@ -1,10 +1,11 @@
 from itertools import product
-from devito import Function, Eq, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
-from sympy import Sum, Symbol, sympify
+from devito import Function, Eq,Max,SubDimension,Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
+from sympy import And, Symbol, sympify
 import numpy as np
 import sympy as sp
 from joey import Layer
 from joey import get_name
+from abc import abstractmethod
 
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
@@ -681,13 +682,16 @@ class MaxPoolingV2(Pooling):
         res_dims = self.result_gradients.dimensions
         next_layer_dims = next_layer.result_gradients.dimensions
         z = self._indices[res_dims]
-        a =  Constant(name="bk_tmp_c_%s" % alloc(), dtype=np.int32)
-        b =  Constant(name="bk_tmp_c_%s" % alloc(), dtype=np.int32)
+        indices_const = []
+        for i in range (0,self._dims):
+            indices_const.append(Constant(name=get_name("pool_backprop_c_"+str(i)), dtype=np.int32))
         input_shape = self._I.shape
-        eqs = [Eq(a ,(z//input_shape[-2])-self._padding[-2])]
-        eqs += [Eq(b, (z%input_shape[-1])-self._padding[-1])]
-        eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],a,b)], self.result_gradients[res_dims])]
+        eqs = [Eq(indices_const[0] ,(z//input_shape[-self._dims])-self._padding[-self._dims])]
+        for i in range (0,self._dims-1):
+            eqs += [Eq(indices_const[1+i], (z%input_shape[-self._dims+i+1])-self._padding[-self._dims+i+1])]
+        eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],*indices_const)], self.result_gradients[res_dims])]
         return (eqs,[])
+
 
 
 class MaxPooling2D(MaxPoolingV2):
@@ -741,6 +745,57 @@ class MaxPooling2D(MaxPoolingV2):
                          stride, padding, activation, generate_code,
                          strict_stride_check)
 
+
+class MaxPooling3D(MaxPoolingV2):
+
+    """
+    A Layer subclass corresponding to a 2D Max pool layer,
+    which calls the generic pooling class.
+    Parameters
+    ----------
+    kernel_size : (int, int, int)
+        The shape of a kernel (represented internally by a NumPy array)
+        expressed as (depth, rows, columns).
+    input_size : (int, int, int, int, int)
+        The shape of input data expressed as
+        (batch size, channels, depth, rows, columns).
+    name_allocator_func : zero-argument function, optional
+        See Layer.__doc__.
+    dim_allocator_func : one-argument function, optional
+        See Layer.__doc__.
+    stride : (int, int), optional
+        Stride of the layer expressed as (rows, columns). The default
+        value is (1, 1, 1).
+    padding : (int, int), optional
+        Padding of the layer expressed as (rows, columns). The default
+        value is (0, 0, 0).
+
+        Be careful! The current version of Joey supports non-zero padding
+        ONLY for standalone layers. When you create a neural network, all
+        of its layers must have (0, 0) padding.
+    activation : Activation, optional
+        See Layer.__doc__. The actual default value is Dummy.
+    generate_code : bool, optional
+        See Layer.__doc__.
+    strict_stride_check : bool, optional
+        A boolean indicating whether a strict stride check should be
+        performed when instantiating this object. The default value is
+        True.
+
+        If the check is disabled and the stride turns out to be
+        incompatible with the provided kernel, input and padding sizes,
+        some parts of input data will not be processed. This behaviour
+        is intentional, its aim is avoiding any out-of-bounds accesses.
+    """
+
+    def __init__(self, kernel_size, input_size,
+                 stride=(1, 1), padding=(0, 0),
+                 activation=None, generate_code=False,
+                 strict_stride_check=True):
+        dimensions = 3
+        super().__init__(kernel_size, input_size, dimensions,
+                         stride, padding, activation, generate_code,
+                         strict_stride_check)
 
 class InstanceNorm(Layer):
     """

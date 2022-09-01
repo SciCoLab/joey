@@ -182,7 +182,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-# test_joey_pytorch_conv2d((1, 1, 7, 7), (1,5, 5), 2, 3, True)
+test_joey_pytorch_conv2d((1, 1, 7, 7), (1,5, 5), 2, 3, True)
 
 @pytest.mark.parametrize("input_size, kernel_size, padding, stride",
                          [((2, 3, 5, 5), (6, 2, 3), 5, 1),
@@ -204,7 +204,7 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
 
     x = layer0.result.shape
 
-    layer = joey.MaxPoolingV2(kernel_size=(kernel_size[1:]),
+    layer = joey.MaxPooling3D(kernel_size=(kernel_size[1:]),
                               input_size=(layer0._R.shape), padding=(
                                   padding, padding),
                               stride=(stride, stride),
@@ -215,10 +215,8 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     
     layers=[layer0,layer]
     joey_net = joey.Net(layers)
-    joey_net._layers[0].kernel.data[:] = np.ones((input_size[1],input_size[1], 1,1), dtype=np.double)
-    joey_net._layers[0].bias.data[:] = np.array([0]*input_size[1])
-    # joey_net._layers[1].kernel.data[:] = kernel_numpy
-    # joey_net._layers[1].bias.data[:] = np.array([0]*kernel_size[0])
+    joey_net._layers[0].kernel.data[:] = np.ones(kernel_size)
+    joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
     criterion = nn.MSELoss()
 
     pytorch_net.zero_grad()
@@ -249,7 +247,7 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     print("ind \n", joey_net._layers[1]._indices.data)
 
 
-    result_torch = grad(outputs=loss, inputs=pytorch_net.grad_conv, retain_graph= True)[0].detach().numpy()
+    result_torch = grad(outputs=loss, inputs=outputs, retain_graph= True)[0].detach().numpy()
 
 
     loss.backward()
@@ -257,7 +255,7 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
 
     # print(pytorch_net.conv.weight.grad.detach().numpy())
     # print(result_torch1)
-    # print(pytorch_net.grad_conv)
+    print(result_torch)
     if print_results:
         print("torch ","\n ", result_torch)
 
@@ -267,4 +265,4 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
 
 
 
-test_joey_pytorch_conv3d((2,3, 2, 5, 7), (3,4, 3, 3), 3, 3, True)
+# test_joey_pytorch_conv3d((2,3, 2, 5, 7), (3,4, 3, 3), 3, 3, True)
