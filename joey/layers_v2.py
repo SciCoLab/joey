@@ -1,5 +1,5 @@
 from itertools import product
-from devito import Function, Eq, Inc, ConditionalDimension, SpaceDimension, sumall
+from devito import Function, Eq, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
 from sympy import Sum, Symbol, sympify
 import numpy as np
 import sympy as sp
