@@ -316,41 +316,8 @@ class ConvV2(Layer):
 
             eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0],kernel_dims[1],*next_layer_dims[2:])], sten,implicit_dims=(kernel_dims[0],next_layer_dims[2]))]
 
-        # if next_layer is not None:
-        #     next_dims = next_layer.result_gradients.dimensions
-        #     # TODO: Better names for these dimensions
-        #     cd1 = ConditionalDimension(name="cd_%s" % alloc(),
-        #                                parent=kernel_dims[2],
-        #                                condition=And(next_dims[2] - height +
-        #                                              1 + kernel_dims[2] >= 0,
-        #                                              next_dims[2] - height +
-        #                                              1 + kernel_dims[2] <
-        #                                              layer.result_gradients
-        #                                              .shape[2]))
-        #     cd2 = ConditionalDimension(name="cd_%s" % alloc(),
-        #                                parent=kernel_dims[3],
-        #                                condition=And(next_dims[3] - width + 1 +
-        #                                              kernel_dims[3] >= 0,
-        #                                              next_dims[3] - width + 1 +
-        #                                              kernel_dims[3] <
-        #                                              layer.result_gradients
-        #                                              .shape[3]))
+            + next_layer.activation.backprop_eqs(next_layer)
 
-        #     eqs += [Inc(next_layer.result_gradients[next_dims[0],
-        #                                             next_dims[1],
-        #                                             next_dims[2],
-        #                                             next_dims[3]],
-        #                 layer.kernel[dims[1], next_dims[1],
-        #                              height - kernel_dims[2] - 1,
-        #                              width - kernel_dims[3] - 1] *
-        #                 layer.result_gradients[next_dims[0],
-        #                                        dims[1],
-        #                                        next_dims[2] - height + 1 +
-        #                                        kernel_dims[2],
-        #                                        next_dims[3] - width + 1 +
-        #                                        kernel_dims[3]],
-        #                 implicit_dims=(cd1, cd2))] + \
-        #         next_layer.activation.backprop_eqs(next_layer)
 
         return (eqs, [])
 
