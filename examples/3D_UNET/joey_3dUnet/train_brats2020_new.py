@@ -20,7 +20,7 @@ def main():
     training_generator, val_generator, full_volume, affine = medical_loaders.generate_datasets(args,
                                                                                                path='examples/3D_UNET/joey_3dUnet/dataset')
     model, optimizer = medzoo.create_model(args)
-    criterion = nn.MSELoss()
+    criterion = DiceLoss(classes=args.classes)
 
     if args.cuda:
         model = model.cuda()
