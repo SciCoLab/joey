@@ -1,4 +1,5 @@
 from itertools import product
+from tkinter import Y
 from devito import Function, Eq,Max,SubDimension,Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
 from sympy import And, Symbol, sympify
 import numpy as np
@@ -500,12 +501,13 @@ class Pooling(Layer):
         devito_func_dims = input_func.dimensions[2:]
         eqs = []
         for i, dim in enumerate(devito_func_dims):
-            dim_l = SubDimension.left(name='sub%s_l' % dim.name, parent=dim,
+            if self._padding[i] > 0:
+                dim_l = SubDimension.left(name='sub%s_l' % dim.name, parent=dim,
                                       thickness=self._padding[i])
-            eqs.append(Inc(input_func.subs({dim: dim_l}), value))
-            dim_r = SubDimension.right(name='sub%s_r' % dim.name, parent=dim,
+                eqs.append(Inc(input_func.subs({dim: dim_l}), value))
+                dim_r = SubDimension.right(name='sub%s_r' % dim.name, parent=dim,
                                        thickness=self._padding[i])
-            eqs.append(Inc(input_func.subs({dim: dim_r}), value))
+                eqs.append(Inc(input_func.subs({dim: dim_r}), value))
         eqs.append(Eq(result_func, value))
         op = Operator(eqs)
         op.apply()
@@ -585,7 +587,7 @@ class Pooling(Layer):
             space_order=0, dtype=np.float64)
 
         self._set_padding_result_values(
-            input_func, result_func, value=-1000000000)
+            input_func, result_func, value=-np.finfo(np.float).min)
 
         return (None, input_func, result_func, None, None, output_grad, None)
 
@@ -666,10 +668,14 @@ class MaxPoolingV2(Pooling):
             args.append((new_dim.name + '_M', self._kernel_size[i] - 1))
         ci = ConditionalDimension(name='ci', parent=new_dims[-1],
                           condition=And(self._I[input_dims]>self._R[result_dimensions]))
-        index = 1
+        index = 0
+        exp_dims =[]
         for i in range (0,self._dims-1):
-            index =  index* self._I.shape[-self._dims+i] *input_dims[-self._dims+i]
-        eqs = [Eq(self._indices[result_dimensions], index+(input_dims[-1]) ,implicit_dims=(new_dims[-2],ci))]
+            prod = np.prod(self._I.shape[3:]) if i==0 else np.prod(self._I.shape[3:-i])
+            index +=  prod * input_dims[-self._dims+i] 
+            exp_dims.append(new_dims[-self._dims+i])
+        exp_dims.append(ci)
+        eqs = [Eq(self._indices[result_dimensions], index+(input_dims[-1]) ,implicit_dims=(exp_dims))]
 
         eqs += [Eq(self._R[result_dimensions], Max(
             self._R[result_dimensions], self._I[input_dims], evaluate=False))]
@@ -690,9 +696,13 @@ class MaxPoolingV2(Pooling):
             indices_const.append(Constant(name=get_name("pool_backprop_c_"+str(i)), dtype=np.int32))
         input_shape = self._I.shape
         eqs = []
-        for i in range (0,self._dims-1):
-            eqs += [Eq(indices_const[i], (z%input_shape[-self._dims+i])-self._padding[-self._dims+i])]
-        eqs.append(Eq(indices_const[-1] ,(z//input_shape[-1])-self._padding[-1]))
+        prod = 1
+        for i in range (0,self._dims):
+            prod = np.prod(self._I.shape[3:]) if i==0 else np.prod(self._I.shape[3:-i])
+            eqs += [Eq(indices_const[i], (z//prod)-self._padding[i])]
+            z = z %prod   
+       
+        # eqs.append(Eq(indices_const[-1] ,(z%input_shape[-1])-self._padding[-1]))
         eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],*indices_const)], self.result_gradients[res_dims])]
         return (eqs,[])
 

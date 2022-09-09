@@ -2,6 +2,8 @@ import joey as ml
 import numpy as np
 from devito import Eq, Operator
 
+from joey.layers_v2 import MaxPoolingV2
+
 
 class Net:
     """
@@ -70,13 +72,21 @@ class Net:
         input_function = None
 
         for layer in self._layers:
-            eqs.append(Eq(layer.result, 0))
-
+            if isinstance(layer,MaxPoolingV2):
+                eqs.append(Eq(layer.result, np.finfo(np.float16).min))
+            else:
+                 eqs.append(Eq(layer.result, 0))
+               
         for layer in self._layers:
             if input_function is not None:
                 dims = input_function.dimensions
-                eqs.append(Eq(layer.input[dims], input_function[dims]))
-
+                if isinstance(layer,MaxPoolingV2):
+                    dims = list(dims)
+                    for i in range(0,layer._dims):
+                        dims[2+i] = dims[2+i]+layer._padding[i]
+                    eqs += [Eq(layer.input[(dims)], input_function)]
+                else:     
+                    eqs.append(Eq(layer.input[dims], input_function[dims]))
             layer_eqs, layer_args = layer.equations()
 
             args += layer_args

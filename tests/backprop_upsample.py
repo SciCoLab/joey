@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.autograd import grad
 
 configuration['language'] = 'openmp'
-# configuration['LOGGING'] = 'debug'
+configuration['platform']='nvidiaX'
 torch_conv_op = []
 torch_conv = []
 gstride = 1
@@ -192,7 +192,7 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
 
     x = (input_size[-1]+(2*padding)-kernel_size[-1])//stride + 1
 
-    layer2 = joey.UpSample(input_size=(input_size[0], 1, x, x, x),
+    layer2 = joey.UpSample(input_size=(input_size[0], kernel_size[0], x, x, x),
                            scale_factor=kernel_size[-1], generate_code=True)
 
     input_numpy = input_data.detach().numpy()
@@ -241,4 +241,4 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     print("Do they match", np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv3d((4, 3, 5, 5, 5), (1, 3, 3, 3), 0, 1, True)
+test_joey_pytorch_conv3d((4, 3, 5, 5, 5), (4, 3, 3, 3), 0, 1, True)
