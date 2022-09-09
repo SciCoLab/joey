@@ -587,7 +587,7 @@ class Pooling(Layer):
             space_order=0, dtype=np.float64)
 
         self._set_padding_result_values(
-            input_func, result_func, value=-np.finfo(np.float).min)
+            input_func, result_func, value=np.finfo(np.float).min)
 
         return (None, input_func, result_func, None, None, output_grad, None)
 
@@ -655,7 +655,7 @@ class MaxPoolingV2(Pooling):
 
     def equations(self):
         result_dimensions = self._R.dimensions
-
+        self._R.data[:] = np.finfo('float').min
         input_dims = [result_dimensions[0], result_dimensions[1]]
         args = []
         new_dims= []
