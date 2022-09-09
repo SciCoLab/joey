@@ -31,10 +31,10 @@ def np_backprop_eq(input_numpy, grad_res, outputs):
     var_sqrt = np.sqrt(var)
 
     # backprop equations
-    change_parts = 1.0 /N
+    inv_no_ofelements = 1.0 /N
     grad_sigma   = np.sum( grad_res *  (input_numpy-mean)   ) * -0.5 * (var) ** -1.5
-    grad_mean    = np.sum( grad_res *  (-1./var_sqrt)) + grad_sigma * change_parts * 2.0 * np.sum((input_numpy-mean)) * -1
-    grad_x       = grad_res * 1/(var_sqrt) + grad_sigma * change_parts * 2.0 * (input_numpy-mean) + grad_mean * change_parts
+    grad_mean    = np.sum( grad_res *  (-1./var_sqrt)) + grad_sigma * inv_no_ofelements * 2.0 * np.sum((input_numpy-mean)) * -1
+    grad_x       = grad_res * 1/(var_sqrt) + grad_sigma * inv_no_ofelements * 2.0 * (input_numpy-mean) + grad_mean * inv_no_ofelements
     return grad_x
 
 input_data = generate_random_input((1,1,5,5))
