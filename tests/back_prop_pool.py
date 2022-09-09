@@ -179,7 +179,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
 
 
 
-# test_joey_pytorch_conv2d((1, 1, 7, 7), (1,5, 5), 0, 1, True)
+# test_joey_pytorch_conv2d((1, 1, 7, 7), (5,5, 5), 2, 1, True)
 
 @pytest.mark.parametrize("input_size, kernel_size, padding, stride",
                          [((2, 3, 5, 5), (6, 2, 3), 5, 1),
@@ -210,6 +210,8 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     
     layers=[layer0,layer]
     joey_net = joey.Net(layers)
+    print("out_jj \n", joey_net._layers[1]._I.data)
+
     joey_net._layers[0].kernel.data[:] = kernel
     joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
     criterion = nn.MSELoss()
@@ -236,6 +238,8 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
 
     print("out_jj \n", joey_net._layers[1].result.data)
 
+    print("out_jj \n", joey_net._layers[0].result.data)
+    print("out_jj \n", joey_net._layers[1]._I.data)
 
     print(joey_net._layers[1].result_gradients.data)
 
@@ -262,6 +266,4 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     print("Do they match", np.allclose(result_joey, result_torch))
 
 
-1, 
-# 2 3 3 
-test_joey_pytorch_conv3d((1,1, 12, 12, 12), (1,3, 3, 3), 0, 3, True)
+test_joey_pytorch_conv3d((4,1, 16, 16, 16), (1,5, 5, 5), 2, 3, True)
