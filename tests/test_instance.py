@@ -185,12 +185,6 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
                         retain_graph=True)
    
 
-    print("yyy",y)        
-
-    print(result_torch)
-   
-
-
     loss.backward()
 
     result_torch = pytorch_net.conv.weight.grad.detach().numpy()

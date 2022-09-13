@@ -107,4 +107,4 @@ def test_joey_pytorch_norm3d(input_size, print_results=False):
     assert np.allclose(result_joey, result_torch)
 
 
-test_joey_pytorch_norm2d((1,1, 5, 5), True)
+test_joey_pytorch_norm2d((2,2, 5, 5), True)

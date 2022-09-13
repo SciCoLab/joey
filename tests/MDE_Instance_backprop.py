@@ -30,12 +30,7 @@ def np_backprop_eq(input_numpy, grad_res, outputs):
     var= var+0.00001
     var_sqrt = np.sqrt(var)
     inv_var = 1/var_sqrt
-    # back_prop start
-    eq1 = (1-1/N)*var_sqrt
-    eq2 = ((grad_res - mean)*(grad_res - mean))/(var_sqrt*N)
 
-    #DL/DX
-    y1 = (1/var)*(eq1- eq2)
 
     e1 =  (N)*(grad_res) 
     e2 = np.sum(grad_res)

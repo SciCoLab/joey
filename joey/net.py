@@ -52,7 +52,7 @@ class Net:
         self._forward_operator = Operator(eqs)
 
         self._forward_operator.cfunction
-        self._backward_operator = Operator(backprop_eqs,opt="noop")
+        self._backward_operator = Operator(backprop_eqs)
 
         self._backward_operator.cfunction
 

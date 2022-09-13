@@ -1,7 +1,7 @@
 from itertools import product
 from tkinter import Y
-from devito import Function, Eq,Max,SubDimension,Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
-from sympy import And, Symbol, sympify
+from devito import Max, Function, sum, Eq,Max,SubDimension,Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
+from sympy import And
 import numpy as np
 import sympy as sp
 from joey import Layer
@@ -459,17 +459,7 @@ class Pooling(Layer):
         ONLY for standalone layers. When you create a neural network, all
         of its layers must have (0, 0) padding.
     activation : Activation, optional
-        See Layer.__doc__. The actual default value is Dummy.
-    generate_code : bool, optional
-        See Layer.__doc__.
-    strict_stride_check : bool, optional
-        A boolean indicating whether a strict stride check should be
-        performed when instantiating this object. The default value is
-        True.
-
-        If the check is disabled and the stride turns out to be
-        incompatible with the provided kernel, input and padding sizes,
-        some parts of input data will not be processed. This behaviour
+        See Layer.__doc__. TSymbol, sympifydata will not be processed. This behaviour
         is intentional, its aim is avoiding any out-of-bounds accesses.
     """
 
@@ -604,24 +594,13 @@ class Pooling(Layer):
     def execute(self, input_data):
         '''execute implementation'''
         dims = list(self._I.dimensions)
-        extra_dims = []
-        for i in range(0,self._dims):
-            dims[2+i] = dims[2+i]+self._padding[i]
-            extra_dims.append(SpaceDimension(name= get_name("temp_space_dims_"+str(i))))
-        temp = Function(name="temp", space_order=0, shape = input_data.shape , dimensions =((*dims[0:2],*extra_dims)),dtype=np.float64)
-        for i in range(0,self._dims):
-            extra_dims[i] = extra_dims[i]+self._padding[i]
-        temp.data[:] = input_data
-        eq = Eq(self._I[(*dims[0:2],*extra_dims)], temp)
-        op = Operator(eq)
-        op.apply()
-        # indices = [slice(0, self._I.shape[0], 1),
-        #            slice(0, self._I.shape[1], 1)]
-        # [indices.append(slice(self._padding[i],
-        #                       self._I.data.shape[2+i]-self._padding[i], 1))
-        #     for i in range(self._dims)]
+        indices = [slice(0, self._I.shape[0], 1),
+                   slice(0, self._I.shape[1], 1)]
+        [indices.append(slice(self._padding[i],
+                              self._I.data.shape[2+i]-self._padding[i], 1))
+            for i in range(self._dims)]
 
-        # self._I.data[tuple(indices)] = input_data
+        self._I.data[tuple(indices)] = input_data
 
         return super().execute()
 
@@ -944,7 +923,7 @@ class InstanceNorm(Layer):
         result_dimensions = self._R.dimensions
         result_shape = self._R.shape
         bias = self._bias.dimensions
-        k_dims_offsets = []
+        self.offsets = k_dims_offsets = []
         for i in range(0, self._dims):
             k_dims_offsets.append(
                 list(range(0, result_shape[-self._dims + i])))
@@ -952,7 +931,7 @@ class InstanceNorm(Layer):
         # indices of kernel matrix for convolution
         k_indices = product(* k_dims_offsets)
 
-        temp_func = Function(name="Ones_Filter", shape=result_shape,
+        self.temp_ones = temp_func = Function(name="Ones_Filter", shape=result_shape,
                              dimensions=result_dimensions, space_order=0,
                              dtype=np.float64)
         temp_func_i = Function(name=get_name("temp_inp"), shape=result_shape,
@@ -989,7 +968,7 @@ class InstanceNorm(Layer):
             [self._R[(*result_dimensions[0:2], *x)]**2 for x in r_indicies])
 
         sum_var_stencil = r_indices_matrix.dot(weight_matrix)
-        eqs += [Eq(self._var[result_dimensions], sum_var_stencil/N)]
+        eqs += [Eq(self._var[result_dimensions[0:2]], sum_var_stencil/N)]
 
         eqs += [Eq(temp_func_i[result_dimensions], sum_var_stencil/N)]
         epsilon = 0.00001
@@ -1006,49 +985,44 @@ class InstanceNorm(Layer):
     def backprop_equations(self, prev_layer, next_layer):
         layer = self
 
-        bias_dims = layer.bias_gradients.dimensions
+        var = layer._var
         dims = layer.result_gradients.dimensions
         result_shape = layer.result_gradients.shape
         N = np.prod(result_shape[2:])
-
         if next_layer is not None:
             next_dims = next_layer.result_gradients.dimensions
             # TODO: Better names for these dimensions
+            layer.temp_func = temp_func = Function(name="temp_func_layer1", shape=result_shape,
+                             dimensions=dims, space_order=0,
+                             dtype=np.float64)
+            eqs = [Eq(temp_func[dims], layer.result_gradients[dims]*layer.result[dims])]
 
-            k_dims_offsets = []
-            for i in range(0, self._dims):
-                k_dims_offsets.append(
-                        list(range(0, result_shape[-self._dims + i])))
-
-                # indices of kernel matrix for convolution
-            k_indices = product(* k_dims_offsets)
-
-            temp_func = Function(name="Ones_Filter", shape=result_shape,
-                                     dimensions=dims, space_order=0,
-                                     dtype=np.float64)
-            temp_func_i = Function(name=get_name("temp_inp"), shape=result_shape,
-                                       dimensions=dims, space_order=0,
-                                       dtype=np.float64)
-
-                # indices of input based on resullt matrix for convolution
-            r_indicies = product(*k_dims_offsets)
-            temp_func.data[:] = 1
+            e1 =  (N)*(layer.result_gradients[dims]) 
+            
+            temp_var = Function(name="var_layer1", shape=var.shape,
+                             dimensions=var.dimensions, space_order=0,
+                             dtype=np.float64)
+            
+            r_indicies = product(*self.offsets)
+            k_indices = product(*self.offsets)
+           
             weight_matrix = sp.Matrix(
-                    [temp_func[(*dims[:2], *x)] for x in k_indices])
-
+            [self.temp_ones[(*dims[:2], *x)] for x in k_indices])
             r_indices_matrix = sp.Matrix(
-                    [self._I[(*dims[:2], *x)] for x in r_indicies])
-            N = np.prod(result_shape[2:])
-                # stencil operation corresponding to the convolution with kernel of input_shape with value to simulate sum of input_mat
-            sum_input_sten = weight_matrix.dot(r_indices_matrix)
+            [temp_func[(*dims[:2], *x)] for x in r_indicies])
+            
+            eqs += [Eq(temp_var[dims[0:2]],  weight_matrix.dot(r_indices_matrix))]
+            
+            r_indicies = product(*self.offsets)
+            r_indices_matrix = sp.Matrix(
+            [layer.result_gradients[(*dims[:2], *x)] for x in r_indicies])
 
-            mean = (sum_input_sten/N)
-            eqs = [Eq(next_layer.result_gradients[next_dims], (1-1/N) /
-                       sp.sqrt(layer.result_gradients[dims]+0.00001))]
-            eqs += [Eq(next_layer.result_gradients[next_dims], next_layer.result_gradients[next_dims] -
-                    ((next_layer.result_gradients - (self._mean[dims[0:2]])**2)/(N*(sp.sqrt((self._var[dims[0:2]])**3)))))]
-            # eqs = [Eq(next_layer.result_gradients[next_dims],layer.result_gradients[next_dims])]
+            e3 = layer.result[dims] * temp_var[dims[0:2]]
 
+            inv_var = 1/sp.sqrt(layer._var[dims[0:2]])
+            e4 = e1-(weight_matrix.dot(r_indices_matrix))-e3
+            eqs += [Eq(next_layer.result_gradients[dims],  e4 * inv_var * (1/N))]
+            
         return (eqs, [])
 
 
