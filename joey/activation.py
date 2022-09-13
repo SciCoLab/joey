@@ -46,6 +46,16 @@ class ReLU(Activation):
         return [Eq(layer.result_gradients,
                    layer.result_gradients * sign(layer.result))]
 
+class LeakyReLU(Activation):
+    """An Activation subclass corresponding to ReLU."""
+    def __init__(self, slope=0.01):
+        super().__init__(lambda x: x if x>0 else x*slope)
+
+
+    def backprop_eqs(self, layer):
+        return [Eq(layer.result_gradients,
+                   layer.result_gradients * sign(layer.result))]
+
 
 class Dummy(Activation):
     """An Activation subclass corresponding to f(x) = x."""
