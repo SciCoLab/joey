@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from sympy import Max, sign
-from devito import Eq
-
+from devito import Eq, Function
+import numpy as np
 
 class Activation(ABC):
     """
@@ -43,8 +43,9 @@ class ReLU(Activation):
         super().__init__(lambda x: Max(0, x))
 
     def backprop_eqs(self, layer):
-        return [Eq(layer.result_gradients,
-                   layer.result_gradients * sign(layer.result))]
+        dims = layer.result_gradients.dimensions
+        return [Eq(layer.result_gradients[dims],
+                   layer.result_gradients[dims] * Max(0,sign(layer.result[dims])))]
 
 class LeakyReLU(Activation):
     """An Activation subclass corresponding to ReLU."""
@@ -53,8 +54,9 @@ class LeakyReLU(Activation):
 
 
     def backprop_eqs(self, layer):
-        return [Eq(layer.result_gradients,
-                   layer.result_gradients * sign(layer.result))]
+        dims = layer.result_gradients.dimensions
+        return [Eq(layer.result_gradients[dims],
+                   layer.result_gradients[dims] * sign(layer.result[dims]))]
 
 
 class Dummy(Activation):

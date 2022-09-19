@@ -4,14 +4,20 @@ from joey import Activation
 from joey import activation as activ
 from numpy import array
 
-index = 0
+index = -1
 dim_index = 0
 
 layer_no =-1 ;
 
-def get_name(name):
+def get_layer():
     global layer_no
-    return name+"_layer"+str(layer_no)
+    return layer_no;
+
+def get_name(name):
+    global layer_no, index
+    index +=1
+    return name+str(index)+"_layer"+str(layer_no)
+    
 def default_name_allocator():
     global index
     name = 'f' + str(index)
@@ -87,6 +93,7 @@ class Layer(ABC):
             eqs, args = self.equations()
             self._arg_dict = dict(args)
             self._op = Operator(eqs)
+            # print(self._op.ccode)
             self._op.cfunction
 
     @property

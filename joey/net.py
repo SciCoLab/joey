@@ -26,8 +26,11 @@ class Net:
         self._layers = layers
         self._forward_arg_dict = {}
         self._backward_arg_dict = {}
+        print("created stuff")
 
         eqs, args = self._gen_eqs()
+        print("created forward eqs")
+
         backprop_eqs, backprop_args = self._gen_backprop_eqs()
 
         for (key, value) in args:
@@ -48,13 +51,18 @@ class Net:
 
         self._parameters = parameters
         self._init_parameters()
-
+        print("created parameters")
         self._forward_operator = Operator(eqs)
+        print("created forw Operator")
 
         self._forward_operator.cfunction
+        print("created forw cfunc")
+
         self._backward_operator = Operator(backprop_eqs)
+        print("created back Operator")
 
         self._backward_operator.cfunction
+        print("created back cfunc")
 
     def _init_parameters(self):
         for layer in self._layers:
@@ -117,6 +125,8 @@ class Net:
                 prev_layer = self._layers[i + 1]
             else:
                 prev_layer = None
+                eqs += self._layers[i].activation.backprop_eqs(self._layers[i])
+
 
             if i > 0:
                 next_layer = self._layers[i - 1]
