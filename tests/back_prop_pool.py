@@ -266,4 +266,4 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
     print("Do they match", np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv3d((4,1, 16, 16, 16), (1,5, 5, 5), 2, 3, True)
+test_joey_pytorch_conv3d((4,1, 16, 16, 16), (4,5, 5, 5), 2, 3, True)

@@ -159,8 +159,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     joey_net.backward(exp_res.detach().numpy(), loss_f)
 
     result_joey = joey_net._layers[0].kernel_gradients.data
-    # print(joey_net._layers[1].result_gradients.data)
-
+    result_joey = joey_net._layers[0].result_gradients.data
     from torch.autograd import grad
 
     # temp = torch.from_numpy(joey_net._layers[0].result_gradients.data)
@@ -175,20 +174,24 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     input_mean = input_numpy - mean
     var = np.sum(input_mean*input_mean)/N
     var= var+0.00001
+    print(var)
     var_sqrt = np.sqrt(var)
     eq1 = (1-1/N)*var_sqrt
     eq2 = ((result_grad_joey - mean)*(result_grad_joey - mean))/(var_sqrt*N)
     y = (1/var)*(eq1- eq2)
-
+    
     global c, c1
-    result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
-                        retain_graph=True)
+    
+    result_torch = grad(outputs=loss, inputs=c, allow_unused=True, retain_graph=True)[0]
    
 
     loss.backward()
 
-    result_torch = pytorch_net.conv.weight.grad.detach().numpy()
+    # result_torch = pytorch_net.conv.weight.grad
+
     # print(result_torch1)
+    
+    result_torch = result_torch.detach().numpy()
     if print_results:
         print("torch", result_torch)
 

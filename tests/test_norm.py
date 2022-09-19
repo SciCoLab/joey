@@ -64,7 +64,7 @@ def test_joey_pytorch_norm2d(input_size,print_results=False):
     x = np.sum(x)/25
     print("hi", (x))
     result_joey = layer.execute(input_numpy)
-    print(layer._mean.data)
+    #print(layer._mean.data)
     print(layer._var.data)
 
     if print_results:
@@ -107,4 +107,4 @@ def test_joey_pytorch_norm3d(input_size, print_results=False):
     assert np.allclose(result_joey, result_torch)
 
 
-test_joey_pytorch_norm2d((2,2, 5, 5), True)
+test_joey_pytorch_norm3d((2, 3, 5, 5, 9), True)
