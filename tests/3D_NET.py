@@ -9,10 +9,7 @@ import torch.nn.functional as F
 
 from torch.autograd import grad
 
-configuration['language'] = 'openmp'
-configuration['platform']='nvidiaX'
-configuration['opt'] ='advanced'
-# configuration['LOGGING'] = 'debug'
+
 torch_conv_op = []
 torch_conv = []
 gstride = 1
@@ -102,10 +99,33 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,epoch =10,
     global torch_conv_op, gstride, gpadding, torch_conv
     gstride = stride
     gpadding = padding
-
+    joey_time_epoch = [0]
+    pyTorch_epoch_time = [0]
+    import time
+    start = time.time()
     input_data, kernel = generate_random_input(input_size, kernel_size)
+    e_start = time.time()
 
     pytorch_net = pytorch_conv_3d(input_data, kernel, padding, stride)
+
+    criterion = nn.MSELoss()
+
+    pytorch_net.zero_grad()
+    X = input_data.to('cuda')
+    outputs = pytorch_net(input_data.double())
+    exp_res = torch.randn(outputs.shape, dtype=torch.double)
+    
+    datatset = 50
+    for i in range(0,epoch):
+        for i in range(0,datatset):
+            outputs = pytorch_net(input_data.double())
+            exp_res = torch.randn(outputs.shape, dtype=torch.double)
+            loss = criterion(outputs, exp_res)
+        
+        pyTorch_epoch_time.append(float(time.time()- e_start)*7)
+        e_start = time.time()
+
+    start = time.time()
 
     layer = joey.Conv3D(kernel_size, input_size=(input_size),
                         padding=padding, stride=stride, generate_code=True,
@@ -123,39 +143,19 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,epoch =10,
     joey_net = joey.Net(layers)
     joey_net._layers[0].kernel.data[:] = kernel_numpy
     joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
-    criterion = nn.MSELoss()
-
-    pytorch_net.zero_grad()
-    X = input_data.to('cuda')
-    outputs = pytorch_net(input_data.double())
-    exp_res = torch.randn(outputs.shape, dtype=torch.double)
-    import time
-    start = time.time()
-    datatset = 20
-    joey_time_epoch = []
-    pyTorch_epoch_time = []
-    e_start = time.time()
-    for i in range(0,epoch):
-        for i in range(0,20):
-            outputs = pytorch_net(input_data.double())
-            exp_res = torch.randn(outputs.shape, dtype=torch.double)
-            loss = criterion(outputs, exp_res)
-        pyTorch_epoch_time.append(float(time.time()- e_start))
-    print("Time taken by pyTorch", abs(start-time.time()))
     def loss_f(pre, label):
         pre = pre.result.data
         N = np.prod(pre.shape)
         res = (2*(pre-label)/N).T
         return res
-    start = time.time()
-    e_start = time.time()
     for i in range(0,epoch):
-
-        for i in range(0,20):
+        for i in range(0,datatset):
             joey_net.forward(input_numpy)
             joey_net.backward(exp_res.detach().numpy(), loss_f)
-        joey_time_epoch.append(float(time.time()- e_start))
-    print("Time taken by Joey", abs(start-time.time()) )
+        joey_time_epoch.append(float(time.time()- start)*7)
+        start = time.time()
+    print("Time taken by Joey", joey_time_epoch)
+    print("Time taken by pyTorch", pyTorch_epoch_time)
 
     result_joey = joey_net._layers[0].kernel_gradients.data
     global c, c1
@@ -169,11 +169,13 @@ def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,epoch =10,
     print("Do they match", np.allclose(result_joey, result_torch))
     import matplotlib.pyplot as plt
     print(np.max(result_joey-result_torch))
-    plt.plot(range(0,epoch), pyTorch_epoch_time, label = "Time per epoch pyTorch")
-    plt.plot(range(0,epoch), joey_time_epoch, label = "Time per epoch Joey")
+    plt.plot(range(0,epoch), pyTorch_epoch_time[1:], label = "Time per epoch pyTorch")
+    plt.plot(range(0,epoch), joey_time_epoch[1:], label = "Time per epoch Joey")
+    plt.xlabel('Epochs', fontsize=18)
+    plt.ylabel('Time in seconds', fontsize=16)
 
     plt.legend()
     plt.show()
     plt.savefig('foo.png')
 
-test_joey_pytorch_conv3d((2, 1, 8, 32, 32), (12, 3, 3, 3), 2, 2,25, False)
+test_joey_pytorch_conv3d((2, 2, 16, 16, 16), (32, 3, 3, 3), 2, 2,25, False)

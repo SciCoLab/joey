@@ -20,6 +20,8 @@ def main():
 
     training_generator, val_generator, full_volume, affine = medical_loaders.generate_datasets(args,
                                                                                                path='examples/3D_UNET/joey_3dUnet/dataset')
+    
+    
     model, optimizer = medzoo.create_model(args)
     criterion = DiceLoss(classes=args.classes)
 
@@ -35,7 +37,7 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batchSz', type=int, default=4)
     parser.add_argument('--dataset_name', type=str, default="brats2020")
-    parser.add_argument('--dim', nargs="+", type=int, default=(64, 64, 64))
+    parser.add_argument('--dim', nargs="+", type=int, default=(128 , 128, 128))
     parser.add_argument('--nEpochs', type=int, default=4)
     parser.add_argument('--classes', type=int, default=4)
     parser.add_argument('--samples_train', type=int, default=10)

@@ -2,7 +2,7 @@ import joey as ml
 import numpy as np
 from devito import Eq, Operator
 
-from joey.layers_v2 import MaxPoolingV2
+from joey.layers_v2 import MaxPoolingV2, ConvV2
 
 
 class Net:
@@ -31,14 +31,6 @@ class Net:
         eqs, args = self._gen_eqs()
         print("created forward eqs")
 
-        backprop_eqs, backprop_args = self._gen_backprop_eqs()
-
-        for (key, value) in args:
-            self._forward_arg_dict[key] = value
-
-        for (key, value) in backprop_args:
-            self._backward_arg_dict[key] = value
-
         parameter_lists = list(map(ml.Layer.pytorch_parameters, self._layers))
         parameters = []
 
@@ -53,16 +45,22 @@ class Net:
         self._init_parameters()
         print("created parameters")
         self._forward_operator = Operator(eqs)
+        #print(self._forward_operator.ccode)
         print("created forw Operator")
+        
+        for (key, value) in args:
+            self._forward_arg_dict[key] = value
+        #self._forward_arg_dict[deviceid] =0
+        backprop_eqs, backprop_args = self._gen_backprop_eqs()
 
-        self._forward_operator.cfunction
-        print("created forw cfunc")
+        for (key, value) in backprop_args:
+            self._backward_arg_dict[key] = value
+
+  
 
         self._backward_operator = Operator(backprop_eqs)
         print("created back Operator")
 
-        self._backward_operator.cfunction
-        print("created back cfunc")
 
     def _init_parameters(self):
         for layer in self._layers:
@@ -81,14 +79,14 @@ class Net:
 
         for layer in self._layers:
             if isinstance(layer,MaxPoolingV2):
-                eqs.append(Eq(layer.result, np.finfo(np.float16).min))
+                eqs.append(Eq(layer.result, -1000000000000))
             else:
                  eqs.append(Eq(layer.result, 0))
                
         for layer in self._layers:
             if input_function is not None:
                 dims = input_function.dimensions
-                if isinstance(layer,MaxPoolingV2):
+                if isinstance(layer,MaxPoolingV2) or isinstance(layer,ConvV2) :
                     dims = list(dims)
                     for i in range(0,layer._dims):
                         dims[2+i] = dims[2+i]+layer._padding[i]
@@ -166,8 +164,22 @@ class Net:
         input_data : np.ndarray
             Input data for the network.
         """
-        self._layers[0].input.data[:] = input_data
+
+        inp_layer = self._layers[0]
+        if isinstance(inp_layer,MaxPoolingV2) or isinstance(inp_layer,ConvV2) :
+
+            indices = [slice(0, inp_layer._I.shape[0], 1),
+                    slice(0, inp_layer._I.shape[1], 1)]
+            [indices.append(slice(inp_layer._padding[i],
+                                inp_layer._I.data.shape[2+i]-inp_layer._padding[i], 1))
+                for i in range(inp_layer._dims)]
+
+            inp_layer._I.data[tuple(indices)] = input_data
+        else:
+            inp_layer._I.data[:] = input_data
+
         self._forward_operator.apply(**self._forward_arg_dict)
+
         return self._layers[-1].result.data
 
     def backward(self, expected, loss_gradient_func, pytorch_optimizer=None):

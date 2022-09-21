@@ -8,7 +8,8 @@ import torch.nn.functional as F
 
 from torch.autograd import grad
 np.set_printoptions(linewidth=1000)
-configuration['language'] = 'openmp'
+configuration['compiler'] = 'gcc'
+configuration['language'] = 'C'
 # configuration['LOGGING'] = 'debug'
 torch_conv_op = []
 torch_conv = []
@@ -38,7 +39,9 @@ def pytorch_conv_3d(input_data, kernel_data, padding, stride):
     input_size = input_data.size()
     kernel_size = kernel_data.size()
     global torch_conv_op, gstride, gpadding, torch_conv
-    torch_conv_op = nn.Upsample(scale_factor=kernel_size[-1], mode='nearest')
+    torch_conv_op = torch.nn.Conv3d(input_size[1], kernel_size[0],
+                                 kernel_size=kernel_size[-1],
+                                 padding=gpadding, stride=gstride, dtype=torch.double)
 
     torch_conv = torch.nn.Conv3d(input_size[1], kernel_size[0],
                                  kernel_size=kernel_size[-1],
@@ -49,10 +52,9 @@ def pytorch_conv_3d(input_data, kernel_data, padding, stride):
         model.conv.weight = torch.nn.Parameter(kernel_data)
         model.conv.bias = torch.nn.Parameter(
             torch.Tensor([0]*kernel_size[0]))
-        # model.conv.weight = torch.nn.Parameter(torch.ones((input_size[1], kernel_size[0],1,1), dtype=torch.double))
-        # model.conv.bias = torch.nn.Parameter(
-        #     torch.Tensor([0]*kernel_size[0]))
-
+        model.conv1.weight = torch.nn.Parameter(kernel_data)
+        model.conv1.bias = torch.nn.Parameter(
+            torch.Tensor([0]*kernel_size[0]))
     return model
 
 
@@ -179,73 +181,82 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
     #assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 1, 7, 7), (1, 3, 3), 0, 2, True)
+# test_joey_pytorch_conv2d((3, 3, 7, 7), (3, 3, 3), 2, 2, True)
 
 
-# def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
-#                              print_results=False):
-#     ''' test function for 3d conv operation'''
-#     global torch_conv_op, gstride, gpadding, torch_conv
-#     gstride = stride
-#     gpadding = padding
+def test_joey_pytorch_conv3d(input_size, kernel_size, padding, stride,
+                             print_results=False):
+    ''' test function for 3d conv operation'''
+    global torch_conv_op, gstride, gpadding, torch_conv
+    gstride = stride
+    gpadding = padding
 
-#     input_data, kernel = generate_random_input(input_size, kernel_size)
+    input_data, kernel = generate_random_input(input_size, kernel_size)
 
-#     pytorch_net = pytorch_conv_3d(input_data, kernel, padding, stride)
+    pytorch_net = pytorch_conv_3d(input_data, kernel, padding, stride)
 
-#     layer = joey.Conv3D(kernel_size, input_size=(input_size),
-#                         padding=padding, stride=stride, generate_code=True,
-#         strict_stride_check=False)
+    layer = joey.Conv3D(kernel_size, input_size=(input_size),
+                        padding=padding, stride=stride, generate_code=True,
+        strict_stride_check=False)
 
-#     x = (input_size[-1]+(2*padding)-kernel_size[-1])//stride + 1
+    x = layer._R.shape
+    kernel_shape = (x[1],*kernel_size[1:])
+    layer2 = joey.Conv3D(kernel_shape, input_size=(x),
+                          padding=padding, stride=
+                              stride, generate_code=True,
+                          strict_stride_check=True)
 
-#     layer2 = joey.UpSample(input_size=(input_size[0], 1, x, x, x),
-#                            scale_factor=kernel_size[-1], generate_code=True)
+    input_numpy = input_data.detach().numpy()
+    kernel_numpy = kernel.detach().numpy()
+    layers = [layer, layer2]
+    joey_net = joey.Net(layers)
+    joey_net._layers[0].kernel.data[:] = kernel_numpy
+    joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
 
-#     input_numpy = input_data.detach().numpy()
-#     kernel_numpy = kernel.detach().numpy()
+    input_data2, kernel2 = generate_random_input(x, kernel_shape)
+    kernel_numpy2 = kernel2.detach().numpy()
+    joey_net._layers[1].kernel.data[:] = kernel_numpy2
+    joey_net._layers[1].bias.data[:] = np.array([0]*kernel_shape[0])
+    criterion = nn.MSELoss()
+    pytorch_net.conv1.weight = torch.nn.Parameter(kernel2)
+    pytorch_net.conv1.bias = torch.nn.Parameter(
+            torch.Tensor([0]*kernel_shape[0]))
+    pytorch_net.zero_grad()
+    outputs = pytorch_net(input_data.double())
+    exp_res = torch.randn(outputs.shape, dtype=torch.double)
+    loss = criterion(outputs, exp_res)
+    loss.retain_grad()
 
-#     layers = [layer, layer2]
-#     joey_net = joey.Net(layers)
-#     joey_net._layers[0].kernel.data[:] = kernel_numpy
-#     joey_net._layers[0].bias.data[:] = np.array([0]*kernel_size[0])
-#     criterion = nn.MSELoss()
+    def loss_f(pre, label):
+        pre = pre.result.data
+        N = np.prod(pre.shape)
+        res = (2*(pre-label)/N).T
+        return res
+    joey_net.forward(input_numpy)
+    joey_net.backward(exp_res.detach().numpy(), loss_f)
 
-#     pytorch_net.zero_grad()
-#     outputs = pytorch_net(input_data.double())
-#     exp_res = torch.randn(outputs.shape, dtype=torch.double)
-#     loss = criterion(outputs, exp_res)
-#     loss.retain_grad()
+    result_joey = joey_net._layers[0].kernel_gradients.data
+   
+    # temp = torch.from_numpy(joey_net._layers[0].result_gradients.data)
 
-#     def loss_f(pre, label):
-#         pre = pre.result.data
-#         N = np.prod(pre.shape)
-#         res = (2*(pre-label)/N).T
-#         return res
-#     joey_net.forward(input_numpy)
-#     joey_net.backward(exp_res.detach().numpy(), loss_f)
+    # result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
+    global c, c1
+    result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
+                        retain_graph=True)[0].detach().numpy()
 
-#     result_joey = joey_net._layers[0].kernel_gradients.data
-#     # print(joey_net._layerskernel_size = kernel_data.size()
+    loss.backward()
 
-#     # temp = torch.from_numpy(joey_net._layers[0].result_gradients.data)
+    result_torch = pytorch_net.conv.weight.grad.detach().numpy()
+       # print(result_torch1)
+    if print_results:
+        print("torch", result_torch)
 
-#     # result_torch1 = conv(temp,torch.flip(kernel,dims=(2,3)),kernel.shape[-1]-1,stride).detach().numpy()
-#     global c, c1
-#     result_torch = grad(outputs=loss, inputs=c, allow_unused=True,
-#                         retain_graph=True)[0].detach().numpy()
-#     print(result_torch)
+        print("joey", result_joey)
 
-#     loss.backward()
-
-#     result_torch = pytorch_net.conv.weight.grad.detach().numpy()
-#        # print(result_torch1)
-#     if print_results:
-#         print("torch", result_torch)
-
-#         print("joey", result_joey)
-
-#     print("Do they match", np.allclose(result_joey, result_torch))
+    print("Do they match", np.allclose(result_joey, result_torch))
 
 
-# test_joey_pytorch_conv3d((4, 3, 5, 5, 5), (1, 3, 3, 3), 0, 1, True)
+test_joey_pytorch_conv3d((3, 3, 8, 8, 8), (3, 3, 3, 3), 1, 1, True)
+
+
+#test_joey_pytorch_conv3d((4, 4, 128, 128, 128), (256, 3, 3, 3), 0, 1, True)

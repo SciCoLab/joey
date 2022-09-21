@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from joey import activation
 
+configuration['compiler'] = 'nvc'
 configuration['language'] = 'openmp'
 configuration['opt'] = 'advanced'
 torch_conv_op = []
@@ -180,7 +181,7 @@ def test_joey_pytorch_conv2d(input_size, kernel_size, padding, stride,
    # assert (np.allclose(result_joey, result_torch))
 
 
-test_joey_pytorch_conv2d((1, 3, 5, 5), (3, 3, 3), 0, 1, True)
+test_joey_pytorch_conv2d((1, 50, 500, 500), (50, 3, 3), 2, 1, True)
 
 
 @pytest.mark.parametrize("input_size, kernel_size, padding, stride",

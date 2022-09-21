@@ -93,7 +93,6 @@ class Layer(ABC):
             eqs, args = self.equations()
             self._arg_dict = dict(args)
             self._op = Operator(eqs)
-            # print(self._op.ccode)
             self._op.cfunction
 
     @property

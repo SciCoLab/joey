@@ -119,12 +119,15 @@ class ConvV2(Layer):
 
         dimensions = ['dbatch', 'dchannel']
         result_shape = []
+        input_size = list(input_size)
         # generating  in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
         for i in range(0, self._dims):
             result_d = (input_size[(-self._dims+i)] -
                         kernel_size[(-self._dims+i)] +
                         2 * self._padding[i])//self._stride[i] + 1
+            input_size[(-self._dims+i)] += 2 * self._padding[i]
+
             result_shape.append(result_d)
             dimensions.append('d_'+dim_dict.get(self._dims-i, self._dims-i))
 
@@ -135,8 +138,7 @@ class ConvV2(Layer):
             get_name("Input_"+x)) for x in dimensions]
 
         input_func = Function(name=get_name("Input_F"), shape=(input_size),
-                              dimensions=input_dimensions, space_order=(
-            self._padding[0]), dtype=np.float64)
+                              dimensions=input_dimensions, space_order=(0), dtype=np.float64)
 
         # function for kernel
         kernel_dims = [SpaceDimension(get_name("kernel_"+x))
@@ -162,7 +164,7 @@ class ConvV2(Layer):
 
         kernel_grad_dimensions = [SpaceDimension(
             get_name("kernel_grad"+x)) for x in dimensions]
-
+        
         kernel_grad = Function(name = get_name("kgrad_"), shape=(
             kernel_size), dimensions=kernel_grad_dimensions, space_order=0,
             dtype=np.float64)
@@ -171,6 +173,8 @@ class ConvV2(Layer):
             get_name("output_grad"+x)) for x in dimensions]
         self._output_grad_padded_dimensions = [SpaceDimension(
             get_name("output_grad_padded"+x)) for x in dimensions]
+        self._output_grad_dilated_dimensions = [SpaceDimension(
+            get_name("output_dil"+x)) for x in dimensions]
 
         output_grad = Function( name = get_name("outgrad_"),
                                shape=result_shape, dimensions=output_grad_dimensions,
@@ -191,48 +195,61 @@ class ConvV2(Layer):
             self._K.data[:] = kernel_data
 
         self._bias.data[:] = bias
-        self._I.data[:] = input_data
         self._R.data[:] = 0
 
+        indices = [slice(0, self._I.shape[0], 1),
+                   slice(0, self._I.shape[1], 1)]
+        [indices.append(slice(self._padding[i],
+                              self._I.data.shape[2+i]-self._padding[i], 1))
+            for i in range(self._dims)]
+
+        self._I.data[tuple(indices)] = input_data
         return super().execute()
 
     def equations(self):
 
         result_dimensions = self._R.dimensions
+        kernel_dims = self._K.dimensions
         bias = self._bias.dimensions
-        k_dims_offsets = []
+        # k_dims_offsets = []
+        # for i in range(0, self._dims):
+        #     k_dims_offsets.append(
+        #         list(range(0, self._kernel_size[-self._dims + i])))
+
+        # off_sets_channels = list(range(0, self._kernel_size[1]))
+
+        # # indices of kernel matrix for convolution
+        # k_indices = product(off_sets_channels, * k_dims_offsets)
+
+        # r_dims_offsets = []
+
+        # # generating offsets in the order depth, height, width ,
+        # # hence arr[-3], arr[-2] and so on
+        # for i in range(0, self._dims):
+        #     r_dim_offsets = [result_dimensions[-self._dims + i]
+        #                      * self._stride[i]+x for x in k_dims_offsets[i]]
+        #     r_dims_offsets.append(r_dim_offsets)
+
+        # # indices of input based on resullt matrix for convolution
+        # r_indicies = product(off_sets_channels, *r_dims_offsets)
+
+        # weight_matrix = sp.Matrix(
+        #     [self._K[(result_dimensions[1], *x)] for x in k_indices])
+
+        # r_indices_matrix = sp.Matrix(
+        #     [self._I[(result_dimensions[0], *x)] for x in r_indicies])
+
+        # # stencil operation corresponding to the convolution
+        # sten = weight_matrix.dot(r_indices_matrix)
+
+        args = []
+        eqs =[]
+        input_dims = [result_dimensions[0],kernel_dims[1]]
         for i in range(0, self._dims):
-            k_dims_offsets.append(
-                list(range(0, self._kernel_size[-self._dims + i])))
+            input_dims.append(
+                result_dimensions[-self._dims + i]*self._stride[i]+kernel_dims[-self._dims + i])
+        eqs += [Inc(self._R[result_dimensions],self._K[(result_dimensions[1] ,*kernel_dims[1:])]*self._I[input_dims])]
 
-        off_sets_channels = list(range(0, self._kernel_size[1]))
-
-        # indices of kernel matrix for convolution
-        k_indices = product(off_sets_channels, * k_dims_offsets)
-
-        r_dims_offsets = []
-
-        # generating offsets in the order depth, height, width ,
-        # hence arr[-3], arr[-2] and so on
-        for i in range(0, self._dims):
-            r_dim_offsets = [result_dimensions[-self._dims + i]
-                             * self._stride[i]+x
-                             - self._padding[i] for x in k_dims_offsets[i]]
-            r_dims_offsets.append(r_dim_offsets)
-
-        # indices of input based on resullt matrix for convolution
-        r_indicies = product(off_sets_channels, *r_dims_offsets)
-
-        weight_matrix = sp.Matrix(
-            [self._K[(result_dimensions[1], *x)] for x in k_indices])
-
-        r_indices_matrix = sp.Matrix(
-            [self._I[(result_dimensions[0], *x)] for x in r_indicies])
-
-        # stencil operation corresponding to the convolution
-        sten = weight_matrix.dot(r_indices_matrix)
-
-        eqs = [Eq(self._R[result_dimensions], sten)]
         eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
         if self._activation is not None:
             eqs.append(Eq(self._R[result_dimensions],
@@ -248,38 +265,35 @@ class ConvV2(Layer):
         result_grad_dims = layer.result_gradients.dimensions
         result_grad_shape = layer.result_gradients.shape
 
-        k_dims_offsets = []
+
+        input_dims = [result_grad_dims[0],kernel_dims[1]]
+        eqs = []
+        padded_shape = [0]* self._dims
+        for i in range(0,self._dims):
+                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i] + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
+           
+        self.rr = res_grad_dilated = Function( name = get_name("outgrad_dilated"),
+                               shape=(*result_grad_shape[0:2],*padded_shape), dimensions=self._output_grad_dilated_dimensions,
+                               space_order= (0), dtype=np.float64)
+        dims = list(result_grad_dims)
+        for i in range(0,layer._dims):
+            dims[2+i] = dims[2+i] + (dims[2+i] *(self._stride[i]-1))
+        eqs += [Eq(res_grad_dilated[(dims)], layer.result_gradients)]
+            
         for i in range(0, self._dims):
-            k_dims_offsets.append(
-                list(range(result_grad_shape[-self._dims + i]-1, -1, -1)))
+            input_dims.append(
+                kernel_dims[-self._dims + i]+self._output_grad_dilated_dimensions[-self._dims + i])
 
-        # indices of kernel matrix for convolution
-        k_indices = product(* k_dims_offsets)
+        eqs += [Inc(layer.kernel_gradients[kernel_dims],
+        
+        res_grad_dilated[(result_grad_dims[0],kernel_dims[0] ,*self._output_grad_dilated_dimensions[2:])]*self._I[input_dims])]
 
-        r_dims_offsets = []
-
-        # generating offsets in the order depth, height, width ,
-        # hence arr[-3], arr[-2] and so on
-
-        for i in range(0, self._dims):
-            r_dim_offsets = [kernel_dims[-self._dims + i] + x *
-                             self._stride[i] - self._padding[i] for x in k_dims_offsets[i]]
-            r_dims_offsets.append(r_dim_offsets)
-
-        # indices of input based on resullt matrix for convolution
-        r_indicies = product(*r_dims_offsets)
-
-        weight_matrix = sp.Matrix(
-            [layer.result_gradients[(result_grad_dims[0], kernel_dims[0], *x)] for x in k_indices])
-
-        r_indices_matrix = sp.Matrix(
-            [self._I[(result_grad_dims[0], kernel_dims[1], *x)] for x in r_indicies])
 
         # stencil operation corresponding to the convolution
-        sten = weight_matrix.dot(r_indices_matrix)
-        eqs = [Inc(layer.bias_gradients[bias_dims[0]],
+        # sten = weight_matrix.dot(r_indices_matrix)
+        eqs += [Inc(layer.bias_gradients[bias_dims[0]],
                    layer.result_gradients[result_grad_dims])]
-        eqs += [Eq(layer.kernel_gradients[(kernel_dims)],  layer.kernel_gradients[(kernel_dims)]+sten)]
+        #eqs += [Eq(layer.kernel_gradients[(kernel_dims)],  layer.kernel_gradients[(kernel_dims)]+sten)]
 
         if next_layer is not None:
             next_layer_dims = next_layer.result_gradients.dimensions
@@ -295,43 +309,52 @@ class ConvV2(Layer):
             eqs += [Eq(output_grad_padded[(dims)], layer.result_gradients)]
                 
             
-            k_dims_offsets = []
+            # k_dims_offsets = []
+            # for i in range(0, self._dims):
+            #     k_dims_offsets.append(
+            #         list(range(kernel_shape[-self._dims + i]-1, -1, -1)))
+            # off_sets_channels = list(range(0, self._kernel_size[1]))
+
+            # # indices of kernel matrix for convolution
+            # k_indices = product(* k_dims_offsets)
+
+            # k_dims_offsets = []
+            # for i in range(0, self._dims):
+            #     k_dims_offsets.append(
+            #         list(range(0, kernel_shape[-self._dims + i], 1)))
+
+            # r_dims_offsets = []
+
+            # # generating offsets in the order depth, height, width ,
+            # # hence arr[-3], arr[-2] and so on
+
+            # for i in range(0, self._dims):
+            #     r_dim_offsets = [next_layer_dims[-self._dims + i] + x  for x in k_dims_offsets[i]]
+            #     r_dims_offsets.append(r_dim_offsets)
+
+            # # indices of input based on resullt matrix for convolution
+            # r_indicies = product(*r_dims_offsets)
+
+            # weight_matrix = sp.Matrix(
+            #     [self._K[(kernel_dims[0], kernel_dims[1], *x)] for x in k_indices])
+
+            # r_indices_matrix = sp.Matrix(
+            #     [output_grad_padded[(next_layer_dims[0], kernel_dims[0], *x)] for x in r_indicies])
+
+            # # stencil operation corresponding to the convolution
+            # sten = weight_matrix.dot(r_indices_matrix)
+
+            input_dims = [next_layer_dims[0],kernel_dims[0]]
+            reversed_k_dims = [*kernel_dims]
             for i in range(0, self._dims):
-                k_dims_offsets.append(
-                    list(range(kernel_shape[-self._dims + i]-1, -1, -1)))
-            off_sets_channels = list(range(0, self._kernel_size[1]))
+                input_dims.append(
+                    next_layer_dims[-self._dims + i]+kernel_dims[-self._dims + i])
+                reversed_k_dims[-self._dims+i] = reversed_k_dims[-self._dims+i].symbolic_max - reversed_k_dims[-self._dims+i]
+            eqs += [Inc(next_layer.result_gradients[next_layer_dims],self._K[(kernel_dims[0] ,*reversed_k_dims[1:])]*output_grad_padded[input_dims])]
+            eqs += next_layer.activation.backprop_eqs(next_layer)
 
-            # indices of kernel matrix for convolution
-            k_indices = product(* k_dims_offsets)
-
-            k_dims_offsets = []
-            for i in range(0, self._dims):
-                k_dims_offsets.append(
-                    list(range(0, kernel_shape[-self._dims + i], 1)))
-
-            r_dims_offsets = []
-
-            # generating offsets in the order depth, height, width ,
-            # hence arr[-3], arr[-2] and so on
-
-            for i in range(0, self._dims):
-                r_dim_offsets = [next_layer_dims[-self._dims + i] + x  for x in k_dims_offsets[i]]
-                r_dims_offsets.append(r_dim_offsets)
-
-            # indices of input based on resullt matrix for convolution
-            r_indicies = product(*r_dims_offsets)
-
-            weight_matrix = sp.Matrix(
-                [self._K[(kernel_dims[0], kernel_dims[1], *x)] for x in k_indices])
-
-            r_indices_matrix = sp.Matrix(
-                [output_grad_padded[(next_layer_dims[0], kernel_dims[0], *x)] for x in r_indicies])
-
-            # stencil operation corresponding to the convolution
-            sten = weight_matrix.dot(r_indices_matrix)
-
-            eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0], kernel_dims[1], *next_layer_dims[2:])], sten,
-                        implicit_dims=(kernel_dims[0], next_layer_dims[-self._dims]))]+next_layer.activation.backprop_eqs(next_layer)
+            # eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0], kernel_dims[1], *next_layer_dims[2:])], sten,
+            #            implicit_dims=(kernel_dims[0], next_layer_dims[-self._dims]))]
 
         return (eqs, [])
 
@@ -590,7 +613,7 @@ class Pooling(Layer):
             space_order=0, dtype=np.float64)
 
         self._set_padding_result_values(
-            input_func, result_func, value=np.finfo(np.float).min+1000)
+            input_func, result_func, value=-1000000000000)
 
         return (None, input_func, result_func, None, None, output_grad, None)
 
@@ -606,7 +629,6 @@ class Pooling(Layer):
 
     def execute(self, input_data):
         '''execute implementation'''
-        dims = list(self._I.dimensions)
         indices = [slice(0, self._I.shape[0], 1),
                    slice(0, self._I.shape[1], 1)]
         [indices.append(slice(self._padding[i],
@@ -647,7 +669,7 @@ class MaxPoolingV2(Pooling):
 
     def equations(self):
         result_dimensions = self._R.dimensions
-        self._R.data[:] = np.finfo('float').min
+        self._R.data[:] = -1000000000
         input_dims = [result_dimensions[0], result_dimensions[1]]
         args = []
         new_dims= []
@@ -673,7 +695,6 @@ class MaxPoolingV2(Pooling):
             self._R[result_dimensions], self._I[input_dims], evaluate=False))]
 
         # eqs += [Eq(self._indices[input_dims], 0, implicit_dims=(ci,))]
-
 
         return (eqs, args)
 
@@ -1216,7 +1237,8 @@ class UpSample(Layer):
 
     def backprop_equations(self, prev_layer, next_layer):
         layer = self
-
+        eqs =[]
+        args =[]
         if next_layer is not None:
             args = []
             next_layer_result_dim = next_layer.result_gradients.dimensions

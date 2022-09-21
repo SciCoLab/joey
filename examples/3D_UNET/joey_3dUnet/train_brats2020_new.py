@@ -7,23 +7,38 @@ import lib.medzoo as medzoo
 import lib.train as train
 # Lib files
 import lib.utils as utils
-from lib.losses3D import DiceLoss
+from  lib.losses3D import DiceLoss
 import torch.nn as nn
+from  lib.medzoo.Unet3D import UNet3D
+import torch.optim as optim
+import time
 seed = 1777777
-
-
+import torch
+import numpy as np
 def main():
     args = get_arguments()
     utils.reproducibility(args, seed)
     utils.make_dirs(args.save)
+    start_time = time.time()
+    training_generator, val_generator, full_volume, affine = medical_loaders.generate_datasets(args,path='examples/3D_UNET/joey_3dUnet/dataset')
+     
+    input_s = (args.batchSz,args.inChannels,*args.dim)    
+    print("generating model", input_s)
+                                                                                        
+    model = UNet3D(in_channels=args.inChannels, input_size = input_s, n_classes=args.classes, base_n_filter=2).net
 
-    training_generator, val_generator, full_volume, affine = medical_loaders.generate_datasets(args,
-                                                                                               path='examples/3D_UNET/joey_3dUnet/dataset')
-    model, optimizer = medzoo.create_model(args)
+    weight_decay = 0.0000000001
+
+    if args.opt == 'sgd':
+        optimizer = optim.SGD(model._parameters, lr=args.lr, momentum=0.5, weight_decay=weight_decay)
+    elif args.opt == 'adam':
+        optimizer = optim.Adam(model._parameters, lr=args.lr, weight_decay=weight_decay)
+    elif args.opt == 'rmsprop':
+        optimizer = optim.RMSprop(model._parameters, lr=args.lr, weight_decay=weight_decay)
+
+  
+    
     criterion = DiceLoss(classes=args.classes)
-
-    if args.cuda:
-        model = model.cuda()
 
     trainer = train.Trainer(args, model, criterion, optimizer, train_data_loader=training_generator,
                             valid_data_loader=val_generator)
@@ -32,10 +47,10 @@ def main():
 
 def get_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batchSz', type=int, default=4)
+    parser.add_argument('--batchSz', type=int, default=2)
     parser.add_argument('--dataset_name', type=str, default="brats2020")
-    parser.add_argument('--dim', nargs="+", type=int, default=(64, 64, 64))
-    parser.add_argument('--nEpochs', type=int, default=4)
+    parser.add_argument('--dim', nargs="+", type=int, default=(64 , 64, 64))
+    parser.add_argument('--nEpochs', type=int, default=10)
     parser.add_argument('--classes', type=int, default=4)
     parser.add_argument('--samples_train', type=int, default=10)
     parser.add_argument('--samples_val', type=int, default=10)
@@ -60,6 +75,8 @@ def get_arguments():
                         choices=('sgd', 'adam', 'rmsprop'))
     parser.add_argument('--log_dir', type=str,
                         default='./runs/')
+    parser.add_argument('--time', type=int,
+                        default=time.time())
 
     args = parser.parse_args()
 
