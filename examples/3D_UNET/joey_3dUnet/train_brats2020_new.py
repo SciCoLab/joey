@@ -24,8 +24,8 @@ def main():
      
     input_s = (args.batchSz,args.inChannels,*args.dim)    
     print("generating model", input_s)
-                                                                                        
-    model = UNet3D(in_channels=args.inChannels, input_size = input_s, n_classes=args.classes, base_n_filter=2).net
+    args.time = time.time()                                                                                    
+    model = UNet3D(in_channels=args.inChannels, input_size = input_s, n_classes=args.classes, base_n_filter=8).net
 
     weight_decay = 0.0000000001
 
@@ -49,7 +49,7 @@ def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batchSz', type=int, default=2)
     parser.add_argument('--dataset_name', type=str, default="brats2020")
-    parser.add_argument('--dim', nargs="+", type=int, default=(64 , 64, 64))
+    parser.add_argument('--dim', nargs="+", type=int, default=(96, 96, 96))
     parser.add_argument('--nEpochs', type=int, default=10)
     parser.add_argument('--classes', type=int, default=4)
     parser.add_argument('--samples_train', type=int, default=10)
@@ -65,7 +65,7 @@ def get_arguments():
     parser.add_argument('--split', default=0.8, type=float, help='Select percentage of training data(default: 0.8)')
     parser.add_argument('--lr', default=1e-2, type=float,
                         help='learning rate (default: 1e-3)')
-    parser.add_argument('--cuda', action='store_true', default=True)
+    parser.add_argument('--cuda', action='store_true', default=False)
     parser.add_argument('--loadData', default=False)
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
