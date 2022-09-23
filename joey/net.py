@@ -59,6 +59,7 @@ class Net:
   
 
         self._backward_operator = Operator(backprop_eqs)
+        print(self._backward_operator.ccode)
         print("created back Operator")
 
 
@@ -139,14 +140,14 @@ class Net:
 
         batch_size = self._layers[-1].result.shape[1]
 
-        for layer in self._layers:
-            if layer.kernel_gradients is not None:
-                eqs.append(Eq(layer.kernel_gradients,
-                              layer.kernel_gradients ))
+        # for layer in self._layers:
+        #     if layer.kernel_gradients is not None:
+        #         eqs.append(Eq(layer.kernel_gradients,
+        #                       layer.kernel_gradients ))
 
-            if layer.bias_gradients is not None:
-                eqs.append(Eq(layer.bias_gradients,
-                              layer.bias_gradients ))
+        #     if layer.bias_gradients is not None:
+        #         eqs.append(Eq(layer.bias_gradients,
+        #                       layer.bias_gradients ))
 
         return (eqs, args)
 
@@ -177,7 +178,6 @@ class Net:
             inp_layer._I.data[tuple(indices)] = input_data
         else:
             inp_layer._I.data[:] = input_data
-
         self._forward_operator.apply(**self._forward_arg_dict)
 
         return self._layers[-1].result.data
@@ -214,6 +214,7 @@ class Net:
         self._layers[-1].result_gradients.data[:] = \
             np.transpose(np.array(loss_gradient_func(self._layers[-1],
                                                      expected)))
+        
         self._backward_operator.apply(**self._backward_arg_dict)
 
         if pytorch_optimizer is not None:
