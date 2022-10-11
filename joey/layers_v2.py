@@ -250,7 +250,7 @@ class ConvV2(Layer):
                 result_dimensions[-self._dims + i]*self._stride[i]+kernel_dims[-self._dims + i])
         eqs += [Inc(self._R[result_dimensions],self._K[(result_dimensions[1] ,*kernel_dims[1:])]*self._I[input_dims])]
 
-        eqs.append(Inc(self._R[result_dimensions], self._bias[bias]))
+        eqs.append(Inc(self._R[result_dimensions], self._bias[result_dimensions]))
         if self._activation is not None:
             eqs.append(Eq(self._R[result_dimensions],
                           self._activation(self._R[result_dimensions])))
@@ -300,7 +300,7 @@ class ConvV2(Layer):
             padded_shape = [0]* self._dims
             for i in range(0,self._dims):
                 padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i]+(2*(self._padding[0]+self._kernel_size[-1]-1)) + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
-            output_grad_padded = Function( name = get_name("outgrad_padded"),
+            self.op = output_grad_padded = Function( name = get_name("outgrad_padded"),
                                shape=(*result_grad_shape[0:2],*padded_shape), dimensions=self._output_grad_padded_dimensions,
                                space_order= (0), dtype=np.float64)
             dims = list(result_grad_dims)
@@ -350,7 +350,7 @@ class ConvV2(Layer):
                 input_dims.append(
                     next_layer_dims[-self._dims + i]+kernel_dims[-self._dims + i])
                 reversed_k_dims[-self._dims+i] = reversed_k_dims[-self._dims+i].symbolic_max - reversed_k_dims[-self._dims+i]
-            eqs += [Inc(next_layer.result_gradients[next_layer_dims],self._K[(kernel_dims[0] ,*reversed_k_dims[1:])]*output_grad_padded[input_dims])]
+            eqs += [Inc(next_layer.result_gradients[next_layer_dims],self._K[(reversed_k_dims)]*output_grad_padded[input_dims])]
             eqs += next_layer.activation.backprop_eqs(next_layer)
 
             # eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0], kernel_dims[1], *next_layer_dims[2:])], sten,

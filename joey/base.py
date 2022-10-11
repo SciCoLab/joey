@@ -20,8 +20,8 @@ def get_name(name):
     
 def default_name_allocator():
     global index
-    name = 'f' + str(index)
     index += 1
+    name = 'f' + str(index)
     return name
 
 
@@ -92,7 +92,7 @@ class Layer(ABC):
         if generate_code:
             eqs, args = self.equations()
             self._arg_dict = dict(args)
-            self._op = Operator(eqs)
+            self._op = Operator(eqs,opt="noop")
             self._op.cfunction
 
     @property
