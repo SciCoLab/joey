@@ -1,7 +1,7 @@
 from itertools import product
 from tkinter import Y
 from typing_extensions import Self
-from devito import Max, Function, sqrt , Eq,Max,SubDimension,Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
+from devito import Max, Function, sqrt, Eq, Max, SubDimension, Operator, Constant, Inc, ConditionalDimension, SpaceDimension, sumall
 from sympy import And
 import numpy as np
 import sympy as sp
@@ -11,6 +11,7 @@ from abc import abstractmethod
 import devito as dv
 from joey import default_name_allocator as alloc
 from joey import default_dim_allocator as dim_alloc
+
 
 class ConvV2(Layer):
     """
@@ -138,7 +139,7 @@ class ConvV2(Layer):
             get_name("Input_"+x)) for x in dimensions]
 
         input_func = Function(name=get_name("Input_F"), shape=(input_size),
-                              dimensions=input_dimensions, space_order=(0), dtype=np.float64)
+                              dimensions=input_dimensions, space_order=0, dtype=np.float64)
 
         # function for kernel
         kernel_dims = [SpaceDimension(get_name("kernel_"+x))
@@ -164,8 +165,8 @@ class ConvV2(Layer):
 
         kernel_grad_dimensions = [SpaceDimension(
             get_name("kernel_grad"+x)) for x in dimensions]
-        
-        kernel_grad = Function(name = get_name("kgrad_"), shape=(
+
+        kernel_grad = Function(name=get_name("kgrad_"), shape=(
             kernel_size), dimensions=kernel_grad_dimensions, space_order=0,
             dtype=np.float64)
 
@@ -176,14 +177,15 @@ class ConvV2(Layer):
         self._output_grad_dilated_dimensions = [SpaceDimension(
             get_name("output_dil"+x)) for x in dimensions]
 
-        output_grad = Function( name = get_name("outgrad_"),
-                               shape=result_shape, dimensions=output_grad_dimensions,
+        output_grad = Function(name=get_name("outgrad_"),
+                               shape=result_shape,
+                               dimensions=output_grad_dimensions,
                                space_order=0, dtype=np.float64)
 
         bias_grad_dimensions = [SpaceDimension(
             get_name("bias_"+x)) for x in ['d']]
 
-        bias_grad = Function(name = get_name("bgrad_"), shape=(
+        bias_grad = Function(name=get_name("bgrad_"), shape=(
             kernel_size[0],), dimensions=bias_grad_dimensions, space_order=0,
             dtype=np.float64)
 
@@ -210,47 +212,18 @@ class ConvV2(Layer):
 
         result_dimensions = self._R.dimensions
         kernel_dims = self._K.dimensions
-        bias = self._bias.dimensions
-        # k_dims_offsets = []
-        # for i in range(0, self._dims):
-        #     k_dims_offsets.append(
-        #         list(range(0, self._kernel_size[-self._dims + i])))
-
-        # off_sets_channels = list(range(0, self._kernel_size[1]))
-
-        # # indices of kernel matrix for convolution
-        # k_indices = product(off_sets_channels, * k_dims_offsets)
-
-        # r_dims_offsets = []
-
-        # # generating offsets in the order depth, height, width ,
-        # # hence arr[-3], arr[-2] and so on
-        # for i in range(0, self._dims):
-        #     r_dim_offsets = [result_dimensions[-self._dims + i]
-        #                      * self._stride[i]+x for x in k_dims_offsets[i]]
-        #     r_dims_offsets.append(r_dim_offsets)
-
-        # # indices of input based on resullt matrix for convolution
-        # r_indicies = product(off_sets_channels, *r_dims_offsets)
-
-        # weight_matrix = sp.Matrix(
-        #     [self._K[(result_dimensions[1], *x)] for x in k_indices])
-
-        # r_indices_matrix = sp.Matrix(
-        #     [self._I[(result_dimensions[0], *x)] for x in r_indicies])
-
-        # # stencil operation corresponding to the convolution
-        # sten = weight_matrix.dot(r_indices_matrix)
-
-        args = []
-        eqs =[]
-        input_dims = [result_dimensions[0],kernel_dims[1]]
+        eqs = []
+        input_dims = [result_dimensions[0], kernel_dims[1]]
         for i in range(0, self._dims):
             input_dims.append(
-                result_dimensions[-self._dims + i]*self._stride[i]+kernel_dims[-self._dims + i])
-        eqs += [Inc(self._R[result_dimensions],self._K[(result_dimensions[1] ,*kernel_dims[1:])]*self._I[input_dims])]
+                result_dimensions[-self._dims + i]*self._stride[i] +
+                kernel_dims[-self._dims + i])
+        eqs += [Inc(self._R[result_dimensions],
+                    self._K[(result_dimensions[1],
+                             *kernel_dims[1:])]*self._I[input_dims])]
 
-        eqs.append(Inc(self._R[result_dimensions], self._bias[result_dimensions]))
+        eqs.append(Inc(self._R[result_dimensions],
+                   self._bias[result_dimensions[1]]))
         if self._activation is not None:
             eqs.append(Eq(self._R[result_dimensions],
                           self._activation(self._R[result_dimensions])))
@@ -265,50 +238,50 @@ class ConvV2(Layer):
         result_grad_dims = layer.result_gradients.dimensions
         result_grad_shape = layer.result_gradients.shape
 
-
-        input_dims = [result_grad_dims[0],kernel_dims[1]]
+        input_dims = [result_grad_dims[0], kernel_dims[1]]
         eqs = []
-        padded_shape = [0]* self._dims
-        for i in range(0,self._dims):
-                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i] + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
-           
-        self.rr = res_grad_dilated = Function( name = get_name("outgrad_dilated"),
-                               shape=(*result_grad_shape[0:2],*padded_shape), dimensions=self._output_grad_dilated_dimensions,
-                               space_order= (0), dtype=np.float64)
+        padded_shape = [0] * self._dims
+        for i in range(0, self._dims):
+            padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i] + \
+                (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
+
+        self.rr = res_grad_dilated = Function(name=get_name("outgrad_dilated"),
+                                              shape=(*result_grad_shape[0:2], *padded_shape), dimensions=self._output_grad_dilated_dimensions,
+                                              space_order=(0), dtype=np.float64)
         dims = list(result_grad_dims)
-        for i in range(0,layer._dims):
-            dims[2+i] = dims[2+i] + (dims[2+i] *(self._stride[i]-1))
+        for i in range(0, layer._dims):
+            dims[2+i] = dims[2+i] + (dims[2+i] * (self._stride[i]-1))
         eqs += [Eq(res_grad_dilated[(dims)], layer.result_gradients)]
-            
+
         for i in range(0, self._dims):
             input_dims.append(
                 kernel_dims[-self._dims + i]+self._output_grad_dilated_dimensions[-self._dims + i])
 
         eqs += [Inc(layer.kernel_gradients[kernel_dims],
-        
-        res_grad_dilated[(result_grad_dims[0],kernel_dims[0] ,*self._output_grad_dilated_dimensions[2:])]*self._I[input_dims])]
 
+                    res_grad_dilated[(result_grad_dims[0], kernel_dims[0], *self._output_grad_dilated_dimensions[2:])]*self._I[input_dims])]
 
         # stencil operation corresponding to the convolution
         # sten = weight_matrix.dot(r_indices_matrix)
         eqs += [Inc(layer.bias_gradients[bias_dims[0]],
-                   layer.result_gradients[result_grad_dims])]
+                    layer.result_gradients[result_grad_dims])]
         #eqs += [Eq(layer.kernel_gradients[(kernel_dims)],  layer.kernel_gradients[(kernel_dims)]+sten)]
 
         if next_layer is not None:
             next_layer_dims = next_layer.result_gradients.dimensions
-            padded_shape = [0]* self._dims
-            for i in range(0,self._dims):
-                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i]+(2*(self._padding[0]+self._kernel_size[-1]-1)) + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
-            self.op = output_grad_padded = Function( name = get_name("outgrad_padded"),
-                               shape=(*result_grad_shape[0:2],*padded_shape), dimensions=self._output_grad_padded_dimensions,
-                               space_order= (0), dtype=np.float64)
+            padded_shape = [0] * self._dims
+            for i in range(0, self._dims):
+                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i]+(
+                    2*(self._padding[0]+self._kernel_size[-1]-1)) + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
+            self.op = output_grad_padded = Function(name=get_name("outgrad_padded"),
+                                                    shape=(*result_grad_shape[0:2], *padded_shape), dimensions=self._output_grad_padded_dimensions,
+                                                    space_order=(0), dtype=np.float64)
             dims = list(result_grad_dims)
-            for i in range(0,layer._dims):
-                dims[2+i] = dims[2+i] -layer._padding[i]+(self._kernel_size[-1]-1) + dims[2+i] *( self._stride[0]-1)
+            for i in range(0, layer._dims):
+                dims[2+i] = dims[2+i] - layer._padding[i] + \
+                    (self._kernel_size[-1]-1) + dims[2+i] * (self._stride[0]-1)
             eqs += [Eq(output_grad_padded[(dims)], layer.result_gradients)]
-                
-            
+
             # k_dims_offsets = []
             # for i in range(0, self._dims):
             #     k_dims_offsets.append(
@@ -344,21 +317,22 @@ class ConvV2(Layer):
             # # stencil operation corresponding to the convolution
             # sten = weight_matrix.dot(r_indices_matrix)
 
-            input_dims = [next_layer_dims[0],kernel_dims[0]]
-            reversed_k_dims = [*kernel_dims]
+            input_dims = [next_layer_dims[0], kernel_dims[0]]
+            reversed_k_dims = [kernel_dims[0],
+                               next_layer_dims[1], *kernel_dims[2:]]
             for i in range(0, self._dims):
                 input_dims.append(
                     next_layer_dims[-self._dims + i]+kernel_dims[-self._dims + i])
-                reversed_k_dims[-self._dims+i] = reversed_k_dims[-self._dims+i].symbolic_max - reversed_k_dims[-self._dims+i]
-            eqs += [Inc(next_layer.result_gradients[next_layer_dims],self._K[(reversed_k_dims)]*output_grad_padded[input_dims])]
+                reversed_k_dims[-self._dims+i] = reversed_k_dims[-self._dims +
+                                                                 i].symbolic_max - reversed_k_dims[-self._dims+i]
+            eqs += [Inc(next_layer.result_gradients[next_layer_dims], self._K[(reversed_k_dims)]
+                        * output_grad_padded[input_dims], implicit_dims=(next_layer_dims[0], kernel_dims[0]))]
             eqs += next_layer.activation.backprop_eqs(next_layer)
 
             # eqs += [Inc(next_layer.result_gradients[(next_layer_dims[0], kernel_dims[1], *next_layer_dims[2:])], sten,
             #            implicit_dims=(kernel_dims[0], next_layer_dims[-self._dims]))]
 
         return (eqs, [])
-
-
 
 
 class Conv3D(ConvV2):
@@ -465,8 +439,6 @@ class Conv2DV2(ConvV2):
                          strict_stride_check)
 
 
-
-
 class Pooling(Layer):
     """
     A Layer abstract subclass corresponding to a generic pooling layer.
@@ -530,10 +502,10 @@ class Pooling(Layer):
         for i, dim in enumerate(devito_func_dims):
             if self._padding[i] > 0:
                 dim_l = SubDimension.left(name=get_name('sub%s_l' % dim.name), parent=dim,
-                                      thickness=self._padding[i])
+                                          thickness=self._padding[i])
                 eqs.append(Inc(input_func.subs({dim: dim_l}), value))
                 dim_r = SubDimension.right(get_name(name='sub%s_r' % dim.name), parent=dim,
-                                       thickness=self._padding[i])
+                                           thickness=self._padding[i])
                 eqs.append(Inc(input_func.subs({dim: dim_r}), value))
         eqs.append(Eq(result_func, value))
         op = Operator(eqs)
@@ -590,17 +562,21 @@ class Pooling(Layer):
 
         result_shape = (*input_size[0:2], *result_shape)
         # input data function
-        input_dimensions = [SpaceDimension(get_name("Input_")+x) for x in dimensions]
+        input_dimensions = [SpaceDimension(
+            get_name("Input_")+x) for x in dimensions]
 
         input_func = Function(name=get_name("Input_F"), shape=(input_size),
                               dimensions=input_dimensions,
                               space_order=0, dtype=np.float64)
-        ind_dimensions = [SpaceDimension(get_name("Indices_"+x)) for x in dimensions]
+        ind_dimensions = [SpaceDimension(
+            get_name("Indices_"+x)) for x in dimensions]
 
-        self._indices = Function(name=get_name('indices_maxpool'), space_order=0, shape=(result_shape), dimensions=ind_dimensions,dtype=np.int16)
+        self._indices = Function(name=get_name('indices_maxpool'), space_order=0, shape=(
+            result_shape), dimensions=ind_dimensions, dtype=np.int16)
 
         # Result for pool layer
-        result_dimensions = [SpaceDimension(get_name("Result_")+x) for x in dimensions]
+        result_dimensions = [SpaceDimension(
+            get_name("Result_")+x) for x in dimensions]
 
         result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
@@ -610,7 +586,7 @@ class Pooling(Layer):
             get_name("output_grad")+x) for x in dimensions]
 
         output_grad = Function(name=get_name("out_grad_F"), shape=result_shape, dimensions=output_grad_dimensions,
-            space_order=0, dtype=np.float64)
+                               space_order=0, dtype=np.float64)
 
         self._set_padding_result_values(
             input_func, result_func, value=-1000000000000)
@@ -672,7 +648,7 @@ class MaxPoolingV2(Pooling):
         self._R.data[:] = -1000000000
         input_dims = [result_dimensions[0], result_dimensions[1]]
         args = []
-        new_dims= []
+        new_dims = []
         for i in range(0, self._dims):
             new_dim = SpaceDimension(
                 name=get_name('d_kernel')+self._dim_dict.get(self._dims-i, self._dims-i))
@@ -681,15 +657,17 @@ class MaxPoolingV2(Pooling):
                 result_dimensions[-self._dims + i]*self._stride[i]+new_dim)
             args.append((new_dim.name + '_M', self._kernel_size[i] - 1))
         ci = ConditionalDimension(name=get_name('ci'), parent=new_dims[-1],
-                          condition=And(self._I[input_dims]>self._R[result_dimensions]))
+                                  condition=And(self._I[input_dims] > self._R[result_dimensions]))
         index = 0
-        exp_dims =[]
-        for i in range (0,self._dims-1):
-            prod = np.prod(self._I.shape[3:]) if i==0 else np.prod(self._I.shape[3:-i])
-            index +=  prod * input_dims[-self._dims+i] 
+        exp_dims = []
+        for i in range(0, self._dims-1):
+            prod = np.prod(self._I.shape[3:]) if i == 0 else np.prod(
+                self._I.shape[3:-i])
+            index += prod * input_dims[-self._dims+i]
             exp_dims.append(new_dims[-self._dims+i])
         exp_dims.append(ci)
-        eqs = [Eq(self._indices[result_dimensions], index+(input_dims[-1]) ,implicit_dims=(exp_dims))]
+        eqs = [Eq(self._indices[result_dimensions], index +
+                  (input_dims[-1]), implicit_dims=(exp_dims))]
 
         eqs += [Eq(self._R[result_dimensions], Max(
             self._R[result_dimensions], self._I[input_dims], evaluate=False))]
@@ -705,20 +683,22 @@ class MaxPoolingV2(Pooling):
         next_layer_dims = next_layer.result_gradients.dimensions
         z = self._indices[res_dims]
         indices_const = []
-        for i in range (0,self._dims):
-            indices_const.append(Constant(name=get_name("pool_backprop_c_"+str(i)), dtype=np.int32))
+        for i in range(0, self._dims):
+            indices_const.append(Constant(name=get_name(
+                "pool_backprop_c_"+str(i)), dtype=np.int32))
         input_shape = self._I.shape
         eqs = []
         prod = 1
-        for i in range (0,self._dims):
-            prod = np.prod(self._I.shape[3:]) if i==0 else np.prod(self._I.shape[3:-i])
+        for i in range(0, self._dims):
+            prod = np.prod(self._I.shape[3:]) if i == 0 else np.prod(
+                self._I.shape[3:-i])
             eqs += [Eq(indices_const[i], (z//prod)-self._padding[i])]
-            z = z %prod   
-       
-        # eqs.append(Eq(indices_const[-1] ,(z%input_shape[-1])-self._padding[-1]))
-        eqs += [Inc(next_layer.result_gradients[(*res_dims[:2],*indices_const)], self.result_gradients[res_dims])]+next_layer.activation.backprop_eqs(next_layer)
-        return (eqs,[])
+            z = z % prod
 
+        # eqs.append(Eq(indices_const[-1] ,(z%input_shape[-1])-self._padding[-1]))
+        eqs += [Inc(next_layer.result_gradients[(*res_dims[:2], *indices_const)],
+                    self.result_gradients[res_dims])]+next_layer.activation.backprop_eqs(next_layer)
+        return (eqs, [])
 
 
 class MaxPooling2D(MaxPoolingV2):
@@ -824,6 +804,7 @@ class MaxPooling3D(MaxPoolingV2):
                          stride, padding, activation, generate_code,
                          strict_stride_check)
 
+
 class InstanceNorm(Layer):
     """
     A Layer subclass corresponding to convolution layer (mathematically,
@@ -892,11 +873,13 @@ class InstanceNorm(Layer):
         dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
 
         dimensions = ['dbatch', 'dchannel']
-        self.mean_dims = [SpaceDimension(get_name("sum_inp_"+x)) for x in dimensions]
+        self.mean_dims = [SpaceDimension(
+            get_name("sum_inp_"+x)) for x in dimensions]
 
         self._mean = Function(name=get_name("sum_inp_"), shape=(input_size[0:2]),
                               dimensions=self.mean_dims, space_order=0, dtype=np.float64)
-        var_dimensions = [SpaceDimension(get_name("Var_"+x)) for x in dimensions]
+        var_dimensions = [SpaceDimension(get_name("Var_"+x))
+                          for x in dimensions]
 
         self._var = Function(name=get_name("var_func"), shape=(input_size[0:2]),
                              dimensions=var_dimensions, space_order=0, dtype=np.float64)
@@ -911,22 +894,25 @@ class InstanceNorm(Layer):
         result_shape = (input_size[0], input_size[1], *result_shape)
 
         # input data function
-        input_dimensions = [SpaceDimension(get_name("Input_"+x)) for x in dimensions]
-        print("layer is", get_layer(),"input size", input_size)
+        input_dimensions = [SpaceDimension(
+            get_name("Input_"+x)) for x in dimensions]
+        print("layer is", get_layer(), "input size", input_size)
         input_func = Function(name=get_name("Input_F_ins"), shape=(input_size),
                               dimensions=input_dimensions, space_order=0, dtype=np.float64)
 
         # Result for convolution
-        result_dimensions = [SpaceDimension(get_name("Result_"+x)) for x in dimensions]
+        result_dimensions = [SpaceDimension(
+            get_name("Result_"+x)) for x in dimensions]
 
         result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
                                dtype=np.float64)
-        pre_result_dimensions = [SpaceDimension(get_name("Pre_Act_Result_"+x)) for x in dimensions]
+        pre_result_dimensions = [SpaceDimension(
+            get_name("Pre_Act_Result_"+x)) for x in dimensions]
 
         self.res_pre_act = Function(name=get_name("pre_activation_R"), shape=result_shape,
-                             dimensions=pre_result_dimensions, space_order=0,
-                             dtype=np.float64)
+                                    dimensions=pre_result_dimensions, space_order=0,
+                                    dtype=np.float64)
 
         bias_dimensions = [SpaceDimension(get_name("bias_"+x)) for x in ['d']]
 
@@ -938,12 +924,12 @@ class InstanceNorm(Layer):
             get_name("output_grad"+x)) for x in dimensions]
 
         output_grad = Function(name=(get_name("outgrad_F")), shape=result_shape, dimensions=output_grad_dimensions,
-            space_order=0, dtype=np.float64)
+                               space_order=0, dtype=np.float64)
 
-        
-        bias_grad_dimensions = [SpaceDimension(get_name("bias_"+x)) for x in ['d']]
+        bias_grad_dimensions = [SpaceDimension(
+            get_name("bias_"+x)) for x in ['d']]
 
-        bias_grad = Function(name= get_name("bias_grad_F"), shape=(
+        bias_grad = Function(name=get_name("bias_grad_F"), shape=(
             input_size[1],), dimensions=bias_grad_dimensions, space_order=0,
             dtype=np.float64)
 
@@ -963,11 +949,12 @@ class InstanceNorm(Layer):
         in_dimensions = self._I.dimensions
         result_shape = self._R.shape
         var_dims = self._var.dimensions
-     
+
         N = np.prod(result_shape[2:])
-        eqs = [Eq(self._mean, (self._mean+self._I[(*self.mean_dims,*in_dimensions[2:])]))]
+        eqs = [
+            Eq(self._mean, (self._mean+self._I[(*self.mean_dims, *in_dimensions[2:])]))]
         eqs += [Eq(self._mean, self._mean/N)]
-        
+
         '''
         .. math::
 
@@ -976,8 +963,9 @@ class InstanceNorm(Layer):
         '''
         eqs += [Eq(self._R[result_dimensions],
                    self._I[result_dimensions] - self._mean[result_dimensions[0:2]])]
-       
-        eqs += [Eq(self._var, self._var+(self._R[(*var_dims,*result_dimensions[2:])]**2))]
+
+        eqs += [Eq(self._var, self._var +
+                   (self._R[(*var_dims, *result_dimensions[2:])]**2))]
 
         eqs += [Eq(self._var, self._var/N)]
 
@@ -985,10 +973,11 @@ class InstanceNorm(Layer):
         eqs += [Eq(self._R[result_dimensions], self._R[result_dimensions] /
                    sqrt(self._var[result_dimensions[0:2]]+epsilon))]
 
-        eqs +=[Inc(self.res_pre_act[result_dimensions], self._R[result_dimensions])]
+        eqs += [Inc(self.res_pre_act[result_dimensions],
+                    self._R[result_dimensions])]
 
         if self._activation is not None:
-        
+
             eqs.append(Eq(self._R[result_dimensions],
                           self._activation(self._R[result_dimensions])))
         return (eqs, [])
@@ -1005,28 +994,32 @@ class InstanceNorm(Layer):
         if next_layer is not None:
             next_dims = next_layer.result_gradients.dimensions
             # TODO: Better names for these dimensions
-            temp_dims = [SpaceDimension(get_name("temp_sum_instance1_d1")),SpaceDimension(get_name("temp_sum_instance1_d2"))]
-            layer.temp_func = temp_func = Function(name= get_name("temp_sum_instance1"), shape=var.shape,
-                             dimensions=(temp_dims), space_order=0,
-                             dtype=np.float64)
-            sum_dims = (*temp_dims,*dims[2:])
-            eqs += [Eq(temp_func[temp_dims], temp_func[temp_dims]+ (layer.result_gradients[sum_dims]*layer.res_pre_act[sum_dims]))]
+            temp_dims = [SpaceDimension(get_name("temp_sum_instance1_d1")), SpaceDimension(
+                get_name("temp_sum_instance1_d2"))]
+            layer.temp_func = temp_func = Function(name=get_name("temp_sum_instance1"), shape=var.shape,
+                                                   dimensions=(
+                                                       temp_dims), space_order=0,
+                                                   dtype=np.float64)
+            sum_dims = (*temp_dims, *dims[2:])
+            eqs += [Eq(temp_func[temp_dims], temp_func[temp_dims] +
+                       (layer.result_gradients[sum_dims]*layer.res_pre_act[sum_dims]))]
 
-            
             temp_sum_instance = Function(name=get_name("temp_sum_instance2"), shape=var.shape,
-                             dimensions=(temp_dims), space_order=0,
-                             dtype=np.float64)
-            
-            eqs += [Eq(temp_sum_instance[temp_dims], (temp_sum_instance[temp_dims]+layer.result_gradients[sum_dims]))]
+                                         dimensions=(temp_dims), space_order=0,
+                                         dtype=np.float64)
+
+            eqs += [Eq(temp_sum_instance[temp_dims],
+                       (temp_sum_instance[temp_dims]+layer.result_gradients[sum_dims]))]
             temp_dims = dims[0:2]
             sum_dims = dims
-            e1 =  (N)*(layer.result_gradients[sum_dims]) 
+            e1 = (N)*(layer.result_gradients[sum_dims])
 
             e3 = layer.res_pre_act[sum_dims] * temp_func[temp_dims]
 
             inv_var = 1/sqrt(layer._var[temp_dims])
             e4 = e1-temp_sum_instance[temp_dims]-e3
-            eqs += [Eq(next_layer.result_gradients[sum_dims],  e4 * inv_var * (1/N))] 
+            eqs += [Eq(next_layer.result_gradients[sum_dims],
+                       e4 * inv_var * (1/N))]
             eqs += next_layer.activation.backprop_eqs(next_layer)
 
         return (eqs, [])
@@ -1191,13 +1184,15 @@ class UpSample(Layer):
         result_shape = (*input_size[0:2], *result_shape)
 
         # input data function
-        input_dimensions = [SpaceDimension(get_name("Input_"+x)) for x in dimensions]
+        input_dimensions = [SpaceDimension(
+            get_name("Input_"+x)) for x in dimensions]
 
         input_func = Function(name=get_name("Input_F"),
                               shape=(input_size), space_order=0,
                               dimensions=input_dimensions, dtype=np.float64)
 
-        result_dimensions = [SpaceDimension(get_name("Result_"+x)) for x in dimensions]
+        result_dimensions = [SpaceDimension(
+            get_name("Result_"+x)) for x in dimensions]
 
         result_func = Function(name=get_name("Result_F"), shape=result_shape,
                                dimensions=result_dimensions, space_order=0,
@@ -1207,7 +1202,7 @@ class UpSample(Layer):
             get_name("output_grad"+x)) for x in dimensions]
 
         output_grad = Function(name=get_name("out_grad_F"), shape=result_shape, dimensions=output_grad_dimensions,
-            space_order=0, dtype=np.float64)
+                               space_order=0, dtype=np.float64)
         return (None, input_func, result_func, None, None,
                 output_grad, None)
 
@@ -1237,8 +1232,8 @@ class UpSample(Layer):
 
     def backprop_equations(self, prev_layer, next_layer):
         layer = self
-        eqs =[]
-        args =[]
+        eqs = []
+        args = []
         if next_layer is not None:
             args = []
             next_layer_result_dim = next_layer.result_gradients.dimensions
@@ -1254,6 +1249,5 @@ class UpSample(Layer):
 
             eqs += [Inc(next_layer.result_gradients[next_layer_result_dim],
                         layer.result_gradients[input_dims])]+next_layer.activation.backprop_eqs(next_layer)
-
 
         return (eqs, args)
