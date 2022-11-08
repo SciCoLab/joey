@@ -263,19 +263,22 @@ class ConvV2(Layer):
 
         # stencil operation corresponding to the convolution
         # sten = weight_matrix.dot(r_indices_matrix)
-        eqs += [Inc(layer.bias_gradients[bias_dims[0]],
-                    layer.result_gradients[result_grad_dims])]
+        eqs += [Inc(layer.bias_gradients[bias_dims],
+                    layer.result_gradients[(result_grad_dims[0],bias_dims[0],*result_grad_dims[2:])])]
         #eqs += [Eq(layer.kernel_gradients[(kernel_dims)],  layer.kernel_gradients[(kernel_dims)]+sten)]
 
         if next_layer is not None:
             next_layer_dims = next_layer.result_gradients.dimensions
             padded_shape = [0] * self._dims
             for i in range(0, self._dims):
-                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i]+(
-                    2*(self._padding[0]+self._kernel_size[-1]-1)) + (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
-            self.op = output_grad_padded = Function(name=get_name("outgrad_padded"),
-                                                    shape=(*result_grad_shape[0:2], *padded_shape), dimensions=self._output_grad_padded_dimensions,
-                                                    space_order=(0), dtype=np.float64)
+                padded_shape[-self._dims+i] = result_grad_shape[-self._dims+i]\
+                    + (2*(self._padding[0]+self._kernel_size[-1]-1)) + \
+                    (self._stride[0]-1)*(result_grad_shape[-self._dims+i]-1)
+            self.op = output_grad_padded = Function(
+                name=get_name("outgrad_padded"),
+                shape=(*result_grad_shape[0:2], *padded_shape),
+                dimensions=self._output_grad_padded_dimensions,
+                space_order=(0), dtype=np.float64)
             dims = list(result_grad_dims)
             for i in range(0, layer._dims):
                 dims[2+i] = dims[2+i] - layer._padding[i] + \
