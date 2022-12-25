@@ -1,6 +1,8 @@
 import joey as ml
 import numpy as np
 from devito import Eq, Operator
+from joey.layers import Conv
+from joey.layers_v2 import ConvV2
 
 
 class Net:
@@ -74,10 +76,14 @@ class Net:
         for layer in self._layers:
             if input_function is not None:
                 dims = input_function.dimensions
-                eqs.append(Eq(layer.input[dims], input_function[dims]))
-
+                if isinstance(layer, ConvV2):
+                    dims = list(dims)
+                    for i in range(0, layer._ndims):
+                        dims[2+i] = dims[2+i]+layer._padding[i]
+                    eqs += [Eq(layer.input[(dims)], input_function)]
+                else:
+                    eqs.append(Eq(layer.input[dims], input_function[dims]))
             layer_eqs, layer_args = layer.equations()
-
             args += layer_args
             eqs += layer_eqs
             input_function = layer.result
@@ -106,6 +112,7 @@ class Net:
                 prev_layer = self._layers[i + 1]
             else:
                 prev_layer = None
+                eqs += self._layers[i].activation.backprop_eqs(self._layers[i])
 
             if i > 0:
                 next_layer = self._layers[i - 1]
@@ -121,11 +128,11 @@ class Net:
         batch_size = self._layers[-1].result.shape[1]
 
         for layer in self._layers:
-            if layer.kernel_gradients is not None:
+            if isinstance(layer, Conv) and layer.kernel_gradients is not None:
                 eqs.append(Eq(layer.kernel_gradients,
                               layer.kernel_gradients / batch_size))
 
-            if layer.bias_gradients is not None:
+            if isinstance(layer, Conv) and layer.bias_gradients is not None:
                 eqs.append(Eq(layer.bias_gradients,
                               layer.bias_gradients / batch_size))
 
@@ -145,7 +152,18 @@ class Net:
         input_data : np.ndarray
             Input data for the network.
         """
-        self._layers[0].input.data[:] = input_data
+        inp_layer = self._layers[0]
+        if isinstance(inp_layer, ConvV2):
+            indices = [slice(0, inp_layer._I.shape[0], 1),
+                       slice(0, inp_layer._I.shape[1], 1)]
+            for i in range(inp_layer._ndims):
+                indices.append(slice(inp_layer._padding[i],
+                                     inp_layer._I.data.shape[2+i]
+                                     - inp_layer._padding[i], 1))
+            inp_layer.input.data[tuple(indices)] = input_data
+
+        else:
+            inp_layer.input.data[:] = input_data
         self._forward_operator.apply(**self._forward_arg_dict)
         return self._layers[-1].result.data
 
