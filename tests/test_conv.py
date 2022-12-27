@@ -38,7 +38,8 @@ def pytorch_conv_2d(input_data, kernel_data, padding, stride):
                                     padding=padding, stride=stride)
 
     torch_conv_op.weight = torch.nn.Parameter(kernel_data)
-    torch_conv_op.bias = torch.nn.Parameter(torch.Tensor([0]*kernel_size[0]).double())
+    torch_conv_op.bias = torch.nn.Parameter(
+        torch.Tensor([0]*kernel_size[0]).double())
 
     result = torch_conv_op(input_data)
 

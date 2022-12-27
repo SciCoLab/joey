@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from itertools import product
 from devito import Function, Eq, Inc, \
     Constant, Operator, SubDimension, \
     Max, ConditionalDimension, SpaceDimension
