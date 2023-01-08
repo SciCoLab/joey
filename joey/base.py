@@ -4,9 +4,8 @@ from joey import Activation
 from joey import activation as activ
 from numpy import array
 
-dim_index = 0
-layer_no = 0
 index = 0
+dim_index = 0
 
 
 def default_name_allocator():
@@ -17,10 +16,10 @@ def default_name_allocator():
 
 
 def default_dim_allocator(count):
-    global dim_index, layer_no
+    global dim_index
     names = ''
     for i in range(count):
-        names += 'd' + str(dim_index)+'_layer'+str(layer_no) + ' '
+        names += 'd' + str(dim_index) + ' '
         dim_index += 1
     names = names[:-1]
     return [SpaceDimension(x) for x in names.split()]
@@ -72,10 +71,7 @@ class Layer(ABC):
                             "its subclass")
 
         self._activation = activation
-        global layer_no, dim_index
-        layer_no += 1
-        dim_index += 1
-        self.layer_num = layer_no
+
         self._K, self._I, self._R, self._bias, self._KG, self._RG, \
             self._biasG = self._allocate(kernel_size,
                                          input_size,
@@ -87,9 +83,6 @@ class Layer(ABC):
             self._arg_dict = dict(args)
             self._op = Operator(eqs)
             self._op.cfunction
-
-    def get_name(self, name):
-        return name+"_layer"+str(self.layer_num)
 
     @property
     def kernel(self):

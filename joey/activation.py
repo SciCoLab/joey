@@ -39,19 +39,16 @@ class Activation(ABC):
 
 class ReLU(Activation):
     """An Activation subclass corresponding to ReLU."""
-
     def __init__(self):
         super().__init__(lambda x: Max(0, x))
 
     def backprop_eqs(self, layer):
         return [Eq(layer.result_gradients,
-                   (layer.result_gradients *
-                    sign(layer.result[layer.result_gradients.dimensions])))]
+                   layer.result_gradients * sign(layer.result))]
 
 
 class Dummy(Activation):
     """An Activation subclass corresponding to f(x) = x."""
-
     def __init__(self):
         super().__init__(lambda x: x)
 
