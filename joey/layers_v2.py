@@ -62,12 +62,12 @@ class ConvV2(Layer):
                  strict_stride_check=True):
         # Internal kernel size (self._kernel_size) is expressed as
         # (output channels / kernel count, input channels, rows, columns).
-        self._dims = dimensions
+        self._ndims = dimensions
 
         if (type(padding) is int):
-            padding = tuple([padding] * self._dims)
+            padding = tuple([padding] * self._ndims)
         if (type(stride) is int):
-            stride = tuple([stride] * self._dims)
+            stride = tuple([stride] * self._ndims)
         self._error_check(kernel_size, input_size, stride, padding,
                           strict_stride_check)
 
@@ -81,19 +81,19 @@ class ConvV2(Layer):
 
     def _error_check(self, kernel_size, input_size, stride, padding,
                      strict_stride_check):
-        if input_size is None or (len(input_size) != self._dims+2):
+        if input_size is None or (len(input_size) != self._ndims+2):
             raise Exception("Input size is incorrect")
 
-        if kernel_size is None or (len(kernel_size) != self._dims+1):
+        if kernel_size is None or (len(kernel_size) != self._ndims+1):
             raise Exception("Kernel size is incorrect")
 
-        if stride is None or (len(stride) != self._dims):
+        if stride is None or (len(stride) != self._ndims):
             raise Exception("Stride is incorrect")
 
-        if padding is None or (len(padding) != self._dims):
+        if padding is None or (len(padding) != self._ndims):
             raise Exception("Padding is incorrect")
 
-        for i in range(0, self._dims):
+        for i in range(0, self._ndims):
 
             if stride[i] < 1:
                 raise Exception("Stride cannot be less than 1")
@@ -102,8 +102,8 @@ class ConvV2(Layer):
                 raise Exception("Padding cannot be negative")
 
         if strict_stride_check:
-            input_d = input_size[-self._dims+i] + 2 * padding[i]
-            if (input_d - kernel_size[-self._dims+i]) % stride[i] != 0:
+            input_d = input_size[-self._ndims+i] + 2 * padding[i]
+            if (input_d - kernel_size[-self._ndims+i]) % stride[i] != 0:
                 raise Exception("Stride " + str(stride) + " is not "
                                 "compatible with feature map, kernel and "
                                 "padding sizes. If you want to proceed "
@@ -120,12 +120,12 @@ class ConvV2(Layer):
         result_shape = []
         # generating  in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
-        for i in range(0, self._dims):
-            result_d = (input_size[(-self._dims+i)] -
-                        kernel_size[(-self._dims+i)] +
+        for i in range(0, self._ndims):
+            result_d = (input_size[(-self._ndims+i)] -
+                        kernel_size[(-self._ndims+i)] +
                         2 * self._padding[i])//self._stride[i] + 1
             result_shape.append(result_d)
-            dimensions.append('d_'+dim_dict.get(self._dims-i, self._dims-i))
+            dimensions.append('d_'+dim_dict.get(self._ndims-i, self._ndims-i))
 
         result_shape = (input_size[0], no_of_kernels, *result_shape)
 
@@ -194,9 +194,9 @@ class ConvV2(Layer):
         result_dimensions = self._R.dimensions
         bias = self._bias.dimensions
         k_dims_offsets = []
-        for i in range(0, self._dims):
+        for i in range(0, self._ndims):
             k_dims_offsets.append(
-                list(range(0, self._kernel_size[-self._dims + i])))
+                list(range(0, self._kernel_size[-self._ndims + i])))
 
         off_sets_channels = list(range(0, self._kernel_size[1]))
 
@@ -207,8 +207,8 @@ class ConvV2(Layer):
 
         # generating offsets in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
-        for i in range(0, self._dims):
-            r_dim_offsets = [result_dimensions[-self._dims + i]
+        for i in range(0, self._ndims):
+            r_dim_offsets = [result_dimensions[-self._ndims + i]
                              * self._stride[i]+x
                              - self._padding[i] for x in k_dims_offsets[i]]
             r_dims_offsets.append(r_dim_offsets)
@@ -444,13 +444,13 @@ class Pooling(Layer):
                  generate_code=False, strict_stride_check=True):
         # Kernel size is expressed as (rows, columns).
         # Input size is expressed as (batch size, channels, rows, columns).
-        self._dims = dimensions
+        self._ndims = dimensions
         self._dim_dict = {3: 'depth', 2: 'height', 1: 'width'}
 
         if (type(padding) is int):
-            padding = tuple([padding] * self._dims)
+            padding = tuple([padding] * self._ndims)
         if (type(stride) is int):
-            stride = tuple([stride] * self._dims)
+            stride = tuple([stride] * self._ndims)
         self._error_check(kernel_size, input_size, stride, padding,
                           strict_stride_check)
 
@@ -461,6 +461,43 @@ class Pooling(Layer):
         super().__init__(self._kernel_size, input_size, activation,
                          alloc, dim_alloc,
                          generate_code)
+
+    def _error_check(self, kernel_size, input_size, stride, padding,
+                     strict_stride_check):
+        if input_size is None or (len(input_size) != self._ndims+2):
+            raise Exception("Input size is incorrect")
+
+        if kernel_size is None or (len(kernel_size) != self._ndims):
+            raise Exception("Kernel size is incorrect")
+
+        if stride is None or (len(stride) != self._ndims):
+            raise Exception("Stride is incorrect")
+
+        if padding is None or (len(padding) != self._ndims):
+            raise Exception("Padding is incorrect")
+
+        for i in range(0, self._ndims):
+
+            if stride[i] < 1:
+                raise Exception("Stride cannot be less than 1")
+
+            if stride[i] is None or type(stride[i]) is not int:
+                raise Exception("Stride must be an integer")
+
+            if padding[i] < 0:
+                raise Exception("Padding cannot be negative")
+
+            if padding[i] is None or type(padding[i]) is not int:
+                raise Exception("Padding must be an integer")
+
+        if strict_stride_check:
+            input_d = input_size[-self._ndims+i] + 2 * padding[i]
+            if (input_d - kernel_size[-self._ndims+i]) % stride[i] != 0:
+                raise Exception("Stride " + str(stride) + " is not "
+                                "compatible with feature map, kernel and "
+                                "padding sizes. If you want to proceed "
+                                "anyway, set strict_stride_check=False "
+                                "when instantiating this object")
 
     def _set_padding_result_values(self, input_func, result_func, value=0):
         devito_func_dims = input_func.dimensions[2:]
@@ -476,37 +513,6 @@ class Pooling(Layer):
         op = Operator(eqs)
         op.apply()
 
-    def _error_check(self, kernel_size, input_size, stride, padding,
-                     strict_stride_check):
-        if input_size is None or (len(input_size) != self._dims+2):
-            raise Exception("Input size is incorrect")
-
-        if kernel_size is None or (len(kernel_size) != self._dims):
-            raise Exception("Kernel size is incorrect")
-
-        if stride is None or (len(stride) != self._dims):
-            raise Exception("Stride is incorrect")
-
-        if padding is None or (len(padding) != self._dims):
-            raise Exception("Padding is incorrect")
-
-        for i in range(0, self._dims):
-
-            if stride[i] < 1:
-                raise Exception("Stride cannot be less than 1")
-
-            if padding[i] < 0:
-                raise Exception("Padding cannot be negative")
-
-        if strict_stride_check:
-            input_d = input_size[-self._dims+i] + 2 * padding[i]
-            if (input_d - kernel_size[-self._dims+i]) % stride[i] != 0:
-                raise Exception("Stride " + str(stride) + " is not "
-                                "compatible with feature map, kernel and "
-                                "padding sizes. If you want to proceed "
-                                "anyway, set strict_stride_check=False "
-                                "when instantiating this object")
-
     def _allocate(self, kernel_size, input_size, name_allocator_func,
                   dim_allocator_func):
 
@@ -515,14 +521,14 @@ class Pooling(Layer):
         input_size = list(input_size)
         # generating  in the order depth, height, width ,
         # hence arr[-3], arr[-2] and so on
-        for i in range(0, self._dims):
-            result_d = (input_size[(-self._dims+i)] -
-                        kernel_size[(-self._dims+i)] +
+        for i in range(0, self._ndims):
+            result_d = (input_size[(-self._ndims+i)] -
+                        kernel_size[(-self._ndims+i)] +
                         2 * self._padding[i])//self._stride[i] + 1
             result_shape.append(result_d)
-            input_size[(-self._dims+i)] += 2 * self._padding[i]
+            input_size[(-self._ndims+i)] += 2 * self._padding[i]
             dimensions.append(
-                'd_'+self._dim_dict.get(self._dims-i, self._dims-i))
+                'd_'+self._dim_dict.get(self._ndims-i, self._ndims-i))
 
         result_shape = (*input_size[0:2], *result_shape)
         # input data function
@@ -565,10 +571,10 @@ class Pooling(Layer):
         '''execute implementation'''
         indices = [slice(0, self._I.shape[0], 1),
                    slice(0, self._I.shape[1], 1)]
-        [indices.append(slice(self._padding[i],
-                              self._I.data.shape[2+i]-self._padding[i], 1))
-            for i in range(self._dims)]
 
+        for i in range(self._ndims):
+            indices.append(slice(self._padding[i],
+                                 self._I.data.shape[2+i]-self._padding[i], 1))
         self._I.data[tuple(indices)] = input_data
 
         return super().execute()
@@ -606,11 +612,12 @@ class MaxPoolingV2(Pooling):
 
         input_dims = [result_dimensions[0], result_dimensions[1]]
         args = []
-        for i in range(0, self._dims):
+        for i in range(0, self._ndims):
             new_dim = SpaceDimension(
-                name='d_kernel'+self._dim_dict.get(self._dims-i, self._dims-i))
+                name='d_kernel'+self._dim_dict.get(
+                    self._ndims-i, self._ndims-i))
             input_dims.append(
-                result_dimensions[-self._dims + i]*self._stride[i]+new_dim)
+                result_dimensions[-self._ndims + i]*self._stride[i]+new_dim)
             args.append((new_dim.name + '_M', self._kernel_size[i] - 1))
 
         eqs = [Eq(self._R[result_dimensions], Max(
