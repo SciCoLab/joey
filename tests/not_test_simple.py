@@ -43,10 +43,10 @@ SEED = 282757891
 def net_arguments():
     np.random.seed(SEED)
 
-    layer1 = joey.Conv(kernel_size=(2, 2, 2),
-                       input_size=(2, 2, 4, 4),
-                       activation=ReLU(),
-                       generate_code=False)
+    layer1 = joey.Conv2DV2(kernel_size=(2, 2, 2),
+                           input_size=(2, 2, 4, 4),
+                           activation=ReLU(),
+                           generate_code=False)
     layer2 = joey.MaxPooling(kernel_size=(2, 2),
                              input_size=(2, 2, 3, 3),
                              generate_code=False)
