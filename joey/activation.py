@@ -54,15 +54,14 @@ class LeakyReLU(Activation):
     """An Activation subclass corresponding to ReLU."""
     def __init__(self, negative_slope=0.01):
         self.negative_slope = negative_slope
-        super().__init__(lambda x: x if x>0 else x*negative_slope)
-
+        super().__init__(lambda x: x if x > 0 else x*negative_slope)
 
     def backprop_eqs(self, layer):
         dims = layer.result_gradients.dimensions
         return [Eq(layer.result_gradients[dims],
                    layer.result_geadients[dims]
                    * (Max(0, sign(layer.result[dims])
-                      + Min(0, sign(layer.result[dims] 
+                      + Min(0, sign(layer.result[dims]
                                     * self.negative_slope)))))]
 
 
